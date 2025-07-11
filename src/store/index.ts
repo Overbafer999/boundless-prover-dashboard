@@ -206,12 +206,12 @@ export const useStore = create<AppStore>()(
         // Computed values
         activeOrders: () => {
           return get().orders.filter(order => 
-            order.status === 'pending' || order.status === 'active'
+            order.status === 'pending' || order.status === 'processing'
           );
         },
         
         onlineProvers: () => {
-          return get().provers.filter(prover => prover.isOnline);
+          return get().provers.filter(prover => prover.status === 'online');
         },
         
         topProvers: (limit = 10) => {
@@ -297,7 +297,7 @@ export const storeHelpers = {
   // Add a prover update from WebSocket
   handleProverUpdate: (proverData: Partial<ProverData> & { address: string }) => {
     const { updateProver, provers } = useStore.getState();
-    const existingProver = provers.find(p => p.address === proverData.address);
+    const existingProver = provers.find(p => p.id === proverData.id);
     
     if (existingProver) {
       updateProver(existingProver.id, proverData);
@@ -305,4 +305,3 @@ export const storeHelpers = {
   },
   
   // Add an order update from WebSocket
-  handleOrder

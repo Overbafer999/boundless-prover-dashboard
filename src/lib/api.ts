@@ -1,59 +1,78 @@
-import type { Prover, Order, MarketStats } from './types'
+import type { NetworkInfo } from "./types";
+import type { ProverData, OrderData } from './types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.boundless.fi'
 
 export const boundlessAPI = {
-  async getProvers(): Promise<Prover[]> {
+  async getProvers(): Promise<ProverData[]> {
     // Mock data for now
     return [
       {
         id: '1',
         name: 'Prover Alpha',
         status: 'online',
+        hashRate: 1250,
         earnings: 1250.50,
         uptime: 98.5,
-        gpu: 'RTX 4090',
-        location: 'US-East'
+        location: 'US-East',
+        lastUpdate: new Date().toISOString()
       },
       {
         id: '2', 
         name: 'Prover Beta',
-        status: 'proving',
+        status: 'busy',
+        hashRate: 890,
         earnings: 890.25,
         uptime: 94.2,
-        gpu: 'RTX 3080',
-        location: 'EU-West'
+        location: 'EU-West',
+        lastUpdate: new Date().toISOString()
+      },
+      {
+        id: '3',
+        name: 'Prover Gamma',
+        status: 'offline',
+        hashRate: 0,
+        earnings: 654.75,
+        uptime: 87.3,
+        location: 'Asia-Pacific',
+        lastUpdate: new Date().toISOString()
       }
     ]
   },
 
-  async getOrders(): Promise<Order[]> {
+  async getOrders(): Promise<OrderData[]> {
     return [
       {
         id: '1',
-        status: 'active',
+        type: 'proof',
+        status: 'processing',
         reward: 125.50,
-        prover: 'Prover Alpha',
-        createdAt: new Date(),
+        difficulty: 8,
+        submittedAt: new Date().toISOString(),
+        proverId: 'Prover Alpha',
       },
       {
         id: '2',
+        type: 'verification',
         status: 'pending', 
         reward: 89.25,
-        createdAt: new Date(),
+        difficulty: 6,
+        submittedAt: new Date().toISOString(),
+      },
+      {
+        id: '3',
+        type: 'proof',
+        status: 'completed',
+        reward: 234.75,
+        difficulty: 10,
+        submittedAt: new Date(Date.now() - 86400000).toISOString(),
+        completedAt: new Date().toISOString(),
+        proverId: 'Prover Beta',
       }
     ]
-  },
-
-  async getMarketStats(): Promise<MarketStats> {
-    return {
-      totalValueLocked: 12750000,
-      activeProvers: 247,
-      totalProvers: 315,
-      activeOrders: 18,
-      successRate: 97.3,
-      averageReward: 145.75,
-      avgResponseTime: 2300
-    }
   }
 }
+export const getCurrentNetwork = (): NetworkInfo => ({
+  isConnected: true,
+  lastUpdate: new Date().toISOString()
+})

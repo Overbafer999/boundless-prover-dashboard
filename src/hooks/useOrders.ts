@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { boundlessAPI } from '@/lib/api'
-import type { Order } from '@/lib/types'
+import type { OrderData } from '@/lib/types'
 
 export function useOrders() {
-  const [orders, setOrders] = useState<Order[]>([])
+  const [orders, setOrders] = useState<OrderData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -24,7 +24,6 @@ export function useOrders() {
   useEffect(() => {
     fetchOrders()
     const interval = setInterval(fetchOrders, 10000) // Update every 10s
-
     return () => clearInterval(interval)
   }, [])
 

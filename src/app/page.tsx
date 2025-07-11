@@ -31,15 +31,15 @@ export default function Home() {
                 <div key={prover.id} className="bg-gray-700 p-4 rounded">
                   <div className="flex justify-between items-center">
                     <span className="font-medium">{prover.name}</span>
-                    <span className={`px-2 py-1 rounded text-sm ${
+                    <span className={`px-2 py-1 rounded text-sm text-white ${
                       prover.status === 'online' ? 'bg-green-600' : 
-                      prover.status === 'proving' ? 'bg-blue-600' : 'bg-red-600'
+                      prover.status === 'busy' ? 'bg-blue-600' : 'bg-red-600'
                     }`}>
                       {prover.status}
                     </span>
                   </div>
                   <div className="text-sm text-gray-300 mt-2">
-                    Earnings: ${prover.earnings} • Uptime: {prover.uptime}%
+                    Earnings: ${prover.earnings} • Hash Rate: {prover.hashRate} H/s
                   </div>
                 </div>
               ))}
@@ -54,16 +54,17 @@ export default function Home() {
                 <div key={order.id} className="bg-gray-700 p-4 rounded">
                   <div className="flex justify-between items-center">
                     <span className="font-medium">Order #{order.id}</span>
-                    <span className={`px-2 py-1 rounded text-sm ${
-                      order.status === 'active' ? 'bg-blue-600' : 
-                      order.status === 'completed' ? 'bg-green-600' : 'bg-yellow-600'
+                    <span className={`px-2 py-1 rounded text-sm text-white ${
+                      order.status === 'processing' ? 'bg-blue-600' : 
+                      order.status === 'completed' ? 'bg-green-600' : 
+                      order.status === 'failed' ? 'bg-red-600' : 'bg-yellow-600'
                     }`}>
                       {order.status}
                     </span>
                   </div>
                   <div className="text-sm text-gray-300 mt-2">
                     Reward: ${order.reward}
-                    {order.prover && ` • Prover: ${order.prover}`}
+                    {order.proverId && ` • Prover: ${order.proverId}`}
                   </div>
                 </div>
               ))}
