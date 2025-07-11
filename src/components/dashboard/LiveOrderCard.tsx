@@ -1,95 +1,254 @@
-'use client'
 import { useState, useEffect } from 'react'
-import { Clock, User, DollarSign } from 'lucide-react'
-import { OrderData } from '@/lib/types'
-import Badge from '@/components/ui/Badge'
+import { motion } from 'framer-motion'
+import { Clock, DollarSign, Users } from 'lucide-react'
+
+interface OrderData {
+  id: string
+  reward: number
+  prover?: string
+  status: 'processing' | 'pending' | 'completed' | 'failed'
+  submittedAt?: string
+  createdAt?: string
+  priority?: 'high' | 'medium' | 'low'
+  timeLeft?: number
+}
 
 interface LiveOrderCardProps {
   order: OrderData
+  index?: number
 }
 
-export default function LiveOrderCard({ order }: LiveOrderCardProps) {
-  const [timeLeft, setTimeLeft] = useState(() => {
-    // Рассчитываем время на основе submittedAt
-    const submitted = new Date(order.submittedAt).getTime()
-    const now = Date.now()
-    const elapsed = (now - submitted) / 1000
-    return Math.max(0, 3600 - elapsed) // 1 час минус прошедшее время
-  })
-
-  // Update countdown timer
-  useEffect(() => {
-    if (timeLeft <= 0) return
-
-    const interval = setInterval(() => {
-      setTimeLeft(prev => Math.max(0, prev - 1))
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [timeLeft])
-
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60)
-    const remainingSeconds = seconds % 60
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
-  }
-
-  const getStatusColor = (status: string) => {
+const StatusBadge = ({ status }: { status: string }) => {
+  const getStatusConfig = () => {
     switch (status) {
-      case 'pending': return 'bg-yellow-500'
-      case 'processing': return 'bg-blue-500'
-      case 'completed': return 'bg-green-500'
-      case 'failed': return 'bg-red-500'
-      default: return 'bg-gray-500'
+      case 'processing':
+        return {
+          bg: 'bg-blue-500/20',
+          text: 'text-blue-400',
+          border: 'border-blue-500/50',
+          glow: 'shadow-blue-500/25'
+        }
+      case 'pending':
+        return {
+          bg: 'bg-yellow-500/20',
+          text: 'text-yellow-400',
+          border: 'border-yellow-500/50',
+          glow: 'shadow-yellow-500/25'
+        }
+      case 'completed':
+        return {
+          bg: 'bg-emerald-500/20',
+          text: 'text-emerald-400',
+          border: 'border-emerald-500/50',
+          glow: 'shadow-emerald-500/25'
+        }
+      case 'failed':
+        return {
+          bg: 'bg-red-500/20',
+          text: 'text-red-400',
+          border: 'border-red-500/50',
+          glow: 'shadow-red-500/25'
+        }
+      default:
+        return {
+          bg: 'bg-gray-500/20',
+          text: 'text-gray-400',
+          border: 'border-gray-500/50',
+          glow: 'shadow-gray-500/25'
+        }
     }
   }
 
+  const config = getStatusConfig()
+
   return (
-    <div className="bg-white rounded-lg border p-4 hover:shadow-md transition-all duration-300">
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <h3 className="font-semibold text-gray-900">Order #{order.id}</h3>
-          <p className="text-sm text-gray-600">{order.type}</p>
-        </div>
-        <div className="flex flex-col items-end gap-2">
-          <Badge variant="secondary">
-            {order.status}
-          </Badge>
-          <div className={`w-3 h-3 rounded-full ${getStatusColor(order.status)}`} />
-        </div>
-      </div>
+    <motion.span 
+      className={`px-3 py-1.5 rounded-full text-xs font-bold border ${config.bg} ${config.text} ${config.border} ${config.glow} shadow-lg backdrop-blur-sm`}
+      whileHover={{ scale: 1.05 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+    >
+      <span className="flex items-center gap-1">
+        <motion.div
+          className={`w-1.5 h-1.5 rounded-full ${config.text.replace('text-', 'bg-')}`}
+          animate={{ 
+            scale: status === 'processing' ? [1, 1.3, 1] : 1,
+            opacity: status === 'failed' ? [1, 0.3, 1] : 1
+          }}
+          transition={{ duration: 2, repeat: Infinity }}
+        />
+        {status.toUpperCase()}
+      </span>
+    </motion.span>
+  )
+}
 
-      <div className="grid grid-cols-2 gap-4 text-sm">
-        <div className="flex items-center gap-2">
-          <DollarSign className="w-4 h-4 text-green-600" />
-          <span>${order.reward}</span>
-        </div>
-        
-        {order.proverId && (
-          <div className="flex items-center gap-2">
-            <User className="w-4 h-4 text-blue-600" />
-            <span className="truncate">{order.proverId}</span>
-          </div>
-        )}
-        
-        {timeLeft > 0 && (
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-orange-600" />
-            <span>{formatTime(timeLeft)}</span>
-          </div>
-        )}
-        
-        <div className="col-span-2">
-          <div className="flex justify-between text-xs mb-1">
-            <span>Difficulty</span>
-            <span>{order.difficulty}</span>
-          </div>
-        </div>
-      </div>
+// Безопасная функция для расчета оставшегося времени
+function safeCalculateTimeLeft(order: OrderData, defaultHours: number = 1): number {
+  try {
+    // Получаем дату создания заказа с fallback
+    const orderDate = order?.submittedAt || order?.createdAt
+    
+    if (!orderDate) {
+      return defaultHours * 3600 // Возвращаем час по умолчанию
+    }
+    
+    const submitted = new Date(orderDate)
+    
+    // Проверяем валидность даты
+    if (isNaN(submitted.getTime())) {
+      console.warn('Invalid date format:', orderDate)
+      return defaultHours * 3600
+    }
+    
+    const now = Date.now()
+    const elapsed = (now - submitted.getTime()) / 1000
+    
+    return Math.max(0, defaultHours * 3600 - elapsed)
+  } catch (error) {
+    console.error('Error calculating time left:', error)
+    return defaultHours * 3600
+  }
+}
 
-      <div className="mt-3 pt-3 border-t text-xs text-gray-500">
-        Created: {new Date(order.submittedAt).toLocaleString()}
+// Безопасная функция для форматирования времени
+function formatTime(seconds: number): string {
+  if (!seconds || seconds <= 0) return '00:00'
+  
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const secs = Math.floor(seconds % 60)
+  
+  if (hours > 0) {
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
+  
+  return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+}
+
+// Безопасная функция для форматирования даты
+function safeFormatDate(dateString?: string): string {
+  try {
+    if (!dateString) return 'Unknown'
+    
+    const date = new Date(dateString)
+    
+    if (isNaN(date.getTime())) {
+      return 'Invalid Date'
+    }
+    
+    return date.toLocaleString()
+  } catch (error) {
+    console.error('Error formatting date:', error)
+    return 'Unknown'
+  }
+}
+
+export default function LiveOrderCard({ order, index = 0 }: LiveOrderCardProps) {
+  // Безопасный расчет времени с проверками
+  const [timeLeft, setTimeLeft] = useState(() => {
+    return safeCalculateTimeLeft(order)
+  })
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft(prev => Math.max(0, prev - 1))
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    if (timeLeft <= 0) return
+    // Дополнительная логика при истечении времени
+  }, [timeLeft])
+
+  // Безопасное получение данных заказа
+  const orderId = order?.id || 'Unknown'
+  const reward = typeof order?.reward === 'number' ? order.reward : 0
+  const prover = order?.prover || null
+  const status = order?.status || 'pending'
+  const priority = order?.priority
+  const orderDate = order?.submittedAt || order?.createdAt
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.1, duration: 0.5 }}
+      whileHover={{ scale: 1.02, y: -5 }}
+      className="bg-gradient-to-br from-boundless-card/60 to-boundless-card/40 backdrop-blur-sm rounded-2xl p-6 border border-boundless-accent/20 hover:border-boundless-accent/40 transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-boundless-accent/10 relative overflow-hidden group"
+    >
+      <div className="absolute inset-0 bg-gradient-to-br from-boundless-accent/5 to-boundless-neon/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <div className="absolute top-0 left-0 w-20 h-20 bg-gradient-to-br from-boundless-accent/20 to-transparent rounded-br-3xl" />
+      
+      <div className="relative z-10">
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h3 className="text-xl font-orbitron font-bold text-white mb-1">
+              Order {orderId}
+            </h3>
+            {priority && (
+              <span className={`text-xs px-2 py-1 rounded-full ${
+                priority === 'high' ? 'bg-red-500/20 text-red-400' :
+                priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                'bg-green-500/20 text-green-400'
+              }`}>
+                {priority.toUpperCase()} PRIORITY
+              </span>
+            )}
+          </div>
+          <StatusBadge status={status} />
+        </div>
+        
+        <div className="space-y-3 mb-4">
+          <div className="flex justify-between items-center">
+            <span className="text-gray-300 text-sm flex items-center gap-2">
+              <DollarSign className="w-4 h-4" />
+              Reward:
+            </span>
+            <motion.span 
+              className="font-bold text-boundless-accent text-lg"
+              whileHover={{ scale: 1.1 }}
+            >
+              ${reward.toFixed(2)}
+            </motion.span>
+          </div>
+          
+          {prover && (
+            <div className="flex justify-between">
+              <span className="text-gray-300 text-sm flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Prover:
+              </span>
+              <span className="font-bold text-boundless-neon">{prover}</span>
+            </div>
+          )}
+
+          {timeLeft > 0 && (
+            <div className="flex justify-between">
+              <span className="text-gray-300 text-sm flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Time Left:
+              </span>
+              <motion.span 
+                className="font-bold text-yellow-400"
+                animate={{ scale: timeLeft < 300 ? [1, 1.1, 1] : 1 }}
+                transition={{ duration: 1, repeat: Infinity }}
+              >
+                {formatTime(timeLeft)}
+              </motion.span>
+            </div>
+          )}
+        </div>
+        
+        <div className="pt-3 border-t border-gray-600/30">
+          <p className="text-xs text-gray-500 flex items-center gap-2">
+            <Clock className="w-3 h-3" />
+            Created: {safeFormatDate(orderDate)}
+          </p>
+        </div>
       </div>
-    </div>
+    </motion.div>
   )
 }
