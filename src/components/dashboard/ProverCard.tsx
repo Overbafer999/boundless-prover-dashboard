@@ -57,11 +57,11 @@ export default function ProverCard({ prover }: ProverCardProps) {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-gray-600">Earnings:</span>
-              <p className="font-semibold text-green-600">{formatCurrency(prover.earnings)}</p>
+              <p className="font-semibold text-green-600">{formatCurrency(prover.earnings ?? 0)}</p>
             </div>
             <div>
               <span className="text-gray-600">Hash Rate:</span>
-              <p className="font-semibold">{prover.hashRate} H/s</p>
+              <p className="font-semibold">{prover.hashRate ?? 0} H/s</p>
             </div>
           </div>
         </div>
@@ -82,11 +82,11 @@ export default function ProverCard({ prover }: ProverCardProps) {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-gray-600">Uptime:</span>
-              <p className="font-medium">{prover.uptime}h</p>
+              <p className="font-medium">{prover.uptime ?? 0}h</p>
             </div>
             <div>
               <span className="text-gray-600">Location:</span>
-              <p className="font-medium">{prover.location}</p>
+              <p className="font-medium">{prover.location ?? 'Unknown'}</p>
             </div>
             <div className="col-span-2">
               <span className="text-gray-600">Prover ID:</span>
@@ -94,7 +94,7 @@ export default function ProverCard({ prover }: ProverCardProps) {
             </div>
             <div className="col-span-2">
               <span className="text-gray-600">Last Update:</span>
-              <p className="font-medium text-xs">{formatTimeAgo(prover.lastUpdate)}</p>
+              <p className="font-medium text-xs">{formatTimeAgo(prover.lastUpdate ?? '')}</p>
             </div>
           </div>
         </div>
