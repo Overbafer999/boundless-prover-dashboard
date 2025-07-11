@@ -1,9 +1,30 @@
 // Core types for Boundless Prover Dashboard
+
+// === Типы статусов для унификации по всему проекту ===
+
+/** Prover Status */
+export type ProverStatus =
+  | 'online'
+  | 'offline'
+  | 'busy'
+  | 'maintenance'
+
+/** Order Status (полный список для Supabase и всех API!) */
+export type OrderStatus =
+  | 'pending'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'in_progress'
+  | 'cancelled'
+
+// === Основные типы ===
+
 export interface ProverData {
   id: string;
   nickname: string;  // Основное поле для имени провера
   name?: string;     // Fallback для совместимости
-  status: 'online' | 'offline' | 'busy' | 'maintenance';
+  status: ProverStatus;
   hashRate?: number;
   earnings?: number;
   earnings_usd?: number;  // API поле для доходов
@@ -25,7 +46,7 @@ export interface ProverData {
 export interface OrderData {
   id: string;
   type?: 'proof' | 'verification' | 'ZK_PROOF' | 'COMPUTATION' | 'VERIFICATION';
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'in_progress' | 'cancelled';
+  status: OrderStatus;
   reward: number;
   difficulty?: number;
   submittedAt?: string;
