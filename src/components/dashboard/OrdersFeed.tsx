@@ -1,20 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, X, Filter, Clock, DollarSign, Users, Activity } from 'lucide-react'
+import { Search, X, Filter, DollarSign, Users, Activity } from 'lucide-react'
 import LiveOrderCard from './LiveOrderCard'
-
-interface OrderData {
-  id: string
-  reward: number
-  prover?: string
-  proverId?: string
-  status: 'processing' | 'pending' | 'completed' | 'failed' | 'in_progress' | 'cancelled'
-  submittedAt?: string
-  createdAt?: string
-  priority?: 'high' | 'medium' | 'low'
-  type?: 'proof' | 'verification' | 'ZK_PROOF' | 'COMPUTATION' | 'VERIFICATION'
-  timeLeft?: number
-}
+import type { OrderData, OrderStatus } from '@/lib/types'
 
 interface OrdersFeedProps {
   orders: OrderData[]
@@ -65,13 +53,14 @@ function safeStringIncludes(str: string | undefined | null, searchTerm: string):
 }
 
 // Безопасная функция для фильтрации заказов
-function filterOrders(orders: OrderData[], searchTerm: string, statusFilter: string): OrderData[] {
+function filterOrders(
+  orders: OrderData[],
+  searchTerm: string,
+  statusFilter: string
+): OrderData[] {
   if (!Array.isArray(orders)) return []
-  
   return orders.filter(order => {
     if (!order || typeof order !== 'object') return false
-    
-    // Безопасный поиск по полям
     const searchQuery = searchTerm.toLowerCase()
     const matchesSearch = !searchTerm || (
       safeStringIncludes(order.id, searchQuery) ||
@@ -81,45 +70,35 @@ function filterOrders(orders: OrderData[], searchTerm: string, statusFilter: str
       safeStringIncludes(order.status, searchQuery) ||
       safeStringIncludes(order.priority, searchQuery)
     )
-
     if (!matchesSearch) return false
-
-    // Фильтр по статусу
     if (statusFilter !== 'all' && order.status !== statusFilter) {
       return false
     }
-
     return true
   })
 }
 
 export default function OrdersFeed({ orders, loading = false, error = null }: OrdersFeedProps) {
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
 
   // Безопасная фильтрация заказов
   const filteredOrders = filterOrders(orders, searchTerm, statusFilter)
 
   // Получение уникальных статусов для фильтра
-  const availableStatuses = Array.from(
+  const availableStatuses: OrderStatus[] = Array.from(
     new Set(
       orders
         .filter(order => order && order.status)
         .map(order => order.status)
     )
-  ).sort()
+  ).sort() as OrderStatus[]
 
-  const handleClearSearch = () => {
-    setSearchTerm('')
-  }
+  const handleClearSearch = () => setSearchTerm('')
 
-  const handleStatusFilter = (status: string) => {
-    setStatusFilter(status)
-  }
+  const handleStatusFilter = (status: string) => setStatusFilter(status)
 
-  if (loading) {
-    return <LoadingSpinner />
-  }
+  if (loading) return <LoadingSpinner />
 
   if (error) {
     return (
