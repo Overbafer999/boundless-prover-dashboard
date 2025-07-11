@@ -12,7 +12,9 @@ import {
   BarChart3,
   Users,
   Clock,
-  DollarSign
+  DollarSign,
+  Search,
+  X
 } from 'lucide-react'
 
 interface ProverData {
@@ -336,6 +338,7 @@ export default function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState<string>('')
   const [isDataVisible, setIsDataVisible] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
 
   const fetchData = async () => {
     try {
@@ -390,9 +393,18 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [])
 
+  // Filter only ACTIVE provers (online + busy) and then apply search
+  const activeProvers = provers.filter(p => p.status === 'online' || p.status === 'busy')
+  const filteredActiveProvers = activeProvers.filter(prover => 
+    prover.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    prover.gpu?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    prover.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    prover.id.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
   // Calculate stats
   const totalEarnings = provers.reduce((sum, p) => sum + p.earnings, 0)
-  const activeProvers = provers.filter(p => p.status !== 'offline').length
+  const activeProversCount = activeProvers.length
   const completedOrders = orders.filter(o => o.status === 'completed').length
   const totalHashRate = provers.reduce((sum, p) => sum + p.hashRate, 0)
 
@@ -487,8 +499,8 @@ export default function Dashboard() {
             
             <StatCard
               title="Active Provers"
-              value={activeProvers.toString()}
-              subtitle="⚡ Live status monitoring"
+              value={activeProversCount.toString()}
+              subtitle="⚡ Online + Busy provers"
               icon={Users}
               gradient="bg-gradient-to-br from-boundless-neon/40 to-boundless-accent/40"
               delay={0.1}
@@ -524,7 +536,7 @@ export default function Dashboard() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            {/* Active Provers */}
+            {/* Active Provers with Search */}
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <motion.h2 
@@ -532,25 +544,91 @@ export default function Dashboard() {
                   whileHover={{ scale: 1.02 }}
                 >
                   <Zap className="w-8 h-8 text-boundless-accent" />
-                  Active Provers
+                  Active Provers ({filteredActiveProvers.length})
                 </motion.h2>
-                
-                <motion.div
-                  whileHover={{ x: 5 }}
-                  className="text-boundless-accent hover:text-boundless-neon transition-colors cursor-pointer flex items-center gap-1"
-                >
-                  <span className="text-sm">View All</span>
-                  <ChevronRight className="w-4 h-4" />
-                </motion.div>
               </div>
+
+              {/* Search Bar */}
+              <motion.div 
+                className="relative"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search your prover by name, ID, GPU, or location..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="block w-full pl-10 pr-10 py-3 border border-boundless-accent/30 rounded-xl leading-5 bg-boundless-card/40 backdrop-blur-sm placeholder-gray-500 text-white focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-boundless-accent/50 focus:border-boundless-accent transition-all duration-200"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  >
+                    <X className="h-5 w-5 text-gray-400 hover:text-white transition-colors" />
+                  </button>
+                )}
+              </motion.div>
+
+              {/* Search Results Info */}
+              {searchTerm && (
+                <motion.p 
+                  className="text-sm text-gray-400 flex items-center gap-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  <Search className="w-4 h-4" />
+                  {filteredActiveProvers.length > 0 
+                    ? `Found ${filteredActiveProvers.length} active prover${filteredActiveProvers.length !== 1 ? 's' : ''} matching "${searchTerm}"`
+                    : `No active provers found matching "${searchTerm}"`
+                  }
+                </motion.p>
+              )}
               
               {loading ? (
                 <LoadingSpinner />
               ) : (
                 <div className="space-y-4">
-                  {provers.map((prover, index) => (
-                    <ProverCard key={prover.id} prover={prover} index={index} />
-                  ))}
+                  {filteredActiveProvers.length > 0 ? (
+                    filteredActiveProvers.map((prover, index) => (
+                      <ProverCard key={prover.id} prover={prover} index={index} />
+                    ))
+                  ) : searchTerm ? (
+                    <motion.div 
+                      className="text-center py-12 text-gray-400"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                    >
+                      <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg mb-2">No active provers found matching "{searchTerm}"</p>
+                      <p className="text-sm">Try searching by:</p>
+                      <ul className="text-sm mt-2 space-y-1">
+                        <li>• Prover name (Alpha, Beta, Gamma, Delta)</li>
+                        <li>• Prover ID (prover-001, prover-002, etc.)</li>
+                        <li>• GPU model (RTX 4090, RTX 3080, etc.)</li>
+                        <li>• Location (US-East, EU-West, Asia-Pacific)</li>
+                      </ul>
+                    </motion.div>
+                  ) : activeProvers.length === 0 ? (
+                    <motion.div 
+                      className="text-center py-12 text-gray-400"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                    >
+                      <Zap className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg">No active provers at the moment</p>
+                      <p className="text-sm mt-2">All provers are currently offline</p>
+                    </motion.div>
+                  ) : (
+                    filteredActiveProvers.map((prover, index) => (
+                      <ProverCard key={prover.id} prover={prover} index={index} />
+                    ))
+                  )}
                 </div>
               )}
             </div>
