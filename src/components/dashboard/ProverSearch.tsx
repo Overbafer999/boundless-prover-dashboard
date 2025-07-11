@@ -80,6 +80,7 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
       // Включаем blockchain данные
       if (useBlockchain) {
         params.append('blockchain', 'true')
+        params.append('realdata', 'true')
       }
 
       const response = await fetch(`/api/provers?${params}`)
