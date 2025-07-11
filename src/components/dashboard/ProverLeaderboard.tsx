@@ -22,7 +22,13 @@ export default function ProverLeaderboard({ provers }: ProverLeaderboardProps) {
       case 'hashRate':
         return safe(b.hashRate) - safe(a.hashRate);
       case 'status': {
-        const statusOrder = { 'busy': 3, 'online': 2, 'offline': 1 };
+        // Теперь тут учтён и maintenance, всё типизировано
+        const statusOrder: Record<string, number> = {
+          'busy': 4,
+          'online': 3,
+          'maintenance': 2,
+          'offline': 1,
+        };
         return (statusOrder[b.status] || 0) - (statusOrder[a.status] || 0);
       }
       default:
