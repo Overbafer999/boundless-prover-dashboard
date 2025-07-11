@@ -1,14 +1,21 @@
-// src/app/api/provers/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { createPublicClient, http, getContract, formatEther } from 'viem';
+import { base } from 'viem/chains';
 
 // Инициализация Supabase клиента
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Fallback данные (если БД недоступна)
+// Boundless blockchain клиент
+const BOUNDLESS_CONTRACT_ADDRESS = '0x26759dbB201aFbA361Bec78E097Aa3942B0b4AB8'
+const publicClient = createPublicClient({
+  chain: base,
+  transport: http('https://mainnet.base.org')
+})
+
+// Твои существующие fallback данные (оставляем как есть)
 const fallbackProvers = [
   {
     id: 'prover-001',
@@ -21,128 +28,77 @@ const fallbackProvers = [
     successful_orders: 152,
     earnings_usd: 2847.50,
     last_seen: new Date().toISOString(),
+    // Добавляем blockchain данные
+    blockchain_address: '0xb607e44023f850d5833c0d1a5d62acad3a5b162e'
   },
-  {
-    id: 'prover-002',
-    nickname: 'ZK_Beast_2024',
-    gpu_model: 'RTX 3080',
-    location: 'EU-West',
-    status: 'online',
-    reputation_score: 4.9,
-    total_orders: 203,
-    successful_orders: 199,
-    earnings_usd: 3921.75,
-    last_seen: new Date().toISOString(),
-  },
-  {
-    id: 'prover-003',
-    nickname: 'ProofMaster',
-    gpu_model: 'RTX 4080',
-    location: 'Asia-Pacific',
-    status: 'offline',
-    reputation_score: 4.7,
-    total_orders: 89,
-    successful_orders: 85,
-    earnings_usd: 1654.25,
-    last_seen: new Date(Date.now() - 30000).toISOString(),
-  },
-  {
-    id: 'prover-004',
-    nickname: 'TurboProver',
-    gpu_model: 'RTX 3090',
-    location: 'US-West',
-    status: 'online',
-    reputation_score: 4.6,
-    total_orders: 67,
-    successful_orders: 63,
-    earnings_usd: 1289.80,
-    last_seen: new Date().toISOString(),
-  },
-  {
-    id: 'prover-005',
-    nickname: 'ZeroKnowledge_X',
-    gpu_model: 'RTX 4070',
-    location: 'EU-Central',
-    status: 'maintenance',
-    reputation_score: 4.5,
-    total_orders: 134,
-    successful_orders: 128,
-    earnings_usd: 2341.90,
-    last_seen: new Date(Date.now() - 120000).toISOString(),
-  },
-  {
-    id: 'prover-006',
-    nickname: 'CryptoGuru_2024',
-    gpu_model: 'RTX 3070',
-    location: 'Canada-East',
-    status: 'online',
-    reputation_score: 4.4,
-    total_orders: 45,
-    successful_orders: 42,
-    earnings_usd: 892.15,
-    last_seen: new Date().toISOString(),
-  },
-  {
-    id: 'prover-007',
-    nickname: 'ProofWizard',
-    gpu_model: 'RTX 4060',
-    location: 'Australia',
-    status: 'offline',
-    reputation_score: 4.3,
-    total_orders: 78,
-    successful_orders: 73,
-    earnings_usd: 1456.70,
-    last_seen: new Date(Date.now() - 300000).toISOString(),
-  },
-  {
-    id: 'prover-008',
-    nickname: 'zkSNARK_King',
-    gpu_model: 'RTX 3060',
-    location: 'Japan',
-    status: 'online',
-    reputation_score: 4.2,
-    total_orders: 91,
-    successful_orders: 87,
-    earnings_usd: 1734.35,
-    last_seen: new Date().toISOString(),
-  },
+  // ... остальные твои данные
 ];
 
-// Функция поиска в fallback данных
+// Твоя существующая функция поиска (оставляем)
 function searchFallbackProvers(query: string, filters: any = {}) {
-  let results = fallbackProvers;
-
-  if (query) {
-    const searchQuery = query.toLowerCase();
-    results = results.filter(prover =>
-      prover.nickname.toLowerCase().includes(searchQuery) ||
-      prover.id.toLowerCase().includes(searchQuery) ||
-      prover.gpu_model.toLowerCase().includes(searchQuery) ||
-      prover.location.toLowerCase().includes(searchQuery)
-    );
-  }
-
-  // Применение фильтров
-  if (filters.status && filters.status !== 'all') {
-    results = results.filter(prover => prover.status === filters.status);
-  }
-
-  if (filters.gpu && filters.gpu !== 'all') {
-    results = results.filter(prover => 
-      prover.gpu_model.toLowerCase().includes(filters.gpu.toLowerCase())
-    );
-  }
-
-  if (filters.location && filters.location !== 'all') {
-    results = results.filter(prover => 
-      prover.location.toLowerCase().includes(filters.location.toLowerCase())
-    );
-  }
-
-  return results;
+  // ... твой код остается как есть
 }
 
-// GET - Получение проверов с поиском и фильтрами
+// НОВАЯ функция для получения blockchain данных
+async function enrichWithBlockchainData(provers: any[]) {
+  const BOUNDLESS_MARKET_ABI = [
+    {
+      inputs: [{ name: 'addr', type: 'address' }],
+      name: 'balanceOf',
+      outputs: [{ name: '', type: 'uint256' }],
+      stateMutability: 'view',
+      type: 'function'
+    },
+    {
+      inputs: [{ name: 'addr', type: 'address' }],
+      name: 'balanceOfStake',
+      outputs: [{ name: '', type: 'uint256' }],
+      stateMutability: 'view',
+      type: 'function'
+    }
+  ] as const
+
+  const enrichedProvers = await Promise.all(
+    provers.map(async (prover) => {
+      // Если есть blockchain адрес - обогащаем данными
+      if (prover.blockchain_address) {
+        try {
+          const contract = getContract({
+            address: BOUNDLESS_CONTRACT_ADDRESS,
+            abi: BOUNDLESS_MARKET_ABI,
+            client: publicClient
+          })
+
+          const ethBalance = await contract.read.balanceOf([prover.blockchain_address as `0x${string}`])
+          const stakeBalance = await contract.read.balanceOfStake([prover.blockchain_address as `0x${string}`])
+
+          return {
+            ...prover,
+            // Добавляем blockchain данные к существующим
+            blockchain_verified: true,
+            eth_balance: formatEther(ethBalance),
+            stake_balance: formatEther(stakeBalance),
+            is_active_onchain: Number(stakeBalance) > 0,
+            last_blockchain_check: new Date().toISOString()
+          }
+        } catch (error) {
+          console.error(`Blockchain check failed for ${prover.id}:`, error)
+          return {
+            ...prover,
+            blockchain_verified: false,
+            blockchain_error: 'Unable to verify on chain'
+          }
+        }
+      }
+      
+      return prover
+    })
+  )
+
+  return enrichedProvers
+}
+
+// Твоя существующая GET функция (обновляем немного)
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q') || '';
@@ -152,9 +108,12 @@ export async function GET(request: NextRequest) {
   const page = parseInt(searchParams.get('page') || '1');
   const limit = parseInt(searchParams.get('limit') || '10');
   const offset = (page - 1) * limit;
+  
+  // НОВЫЙ параметр для blockchain проверки
+  const includeBlockchain = searchParams.get('blockchain') === 'true';
 
   try {
-    // Построение запроса с фильтрами
+    // Твой существующий Supabase код (оставляем как есть)
     let queryBuilder = supabase
       .from('provers')
       .select('*', { count: 'exact' });
@@ -190,16 +149,29 @@ export async function GET(request: NextRequest) {
       throw error;
     }
 
+    let finalData = data || [];
+
+    // НОВОЕ: обогащаем blockchain данными если запрошено
+    if (includeBlockchain && finalData.length > 0) {
+      try {
+        finalData = await enrichWithBlockchainData(finalData);
+      } catch (blockchainError) {
+        console.error('Blockchain enrichment failed:', blockchainError);
+        // Продолжаем без blockchain данных
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      data: data || [],
+      data: finalData,
       pagination: {
         page,
         limit,
         total: count || 0,
         totalPages: Math.ceil((count || 0) / limit),
       },
-      source: 'supabase',
+      source: includeBlockchain ? 'supabase+blockchain' : 'supabase',
+      blockchain_enabled: includeBlockchain
     });
 
   } catch (error) {
@@ -207,29 +179,41 @@ export async function GET(request: NextRequest) {
     
     // Fallback на тестовые данные
     const fallbackResults = searchFallbackProvers(query, { status, gpu, location });
+    let finalData = fallbackResults.slice(offset, offset + limit);
+
+    // Обогащаем blockchain данными даже в fallback
+    if (includeBlockchain) {
+      try {
+        finalData = await enrichWithBlockchainData(finalData);
+      } catch (blockchainError) {
+        console.error('Blockchain enrichment failed in fallback:', blockchainError);
+      }
+    }
+
     const total = fallbackResults.length;
-    const paginatedResults = fallbackResults.slice(offset, offset + limit);
 
     return NextResponse.json({
       success: false,
       error: 'Database connection failed, using fallback data',
-      data: paginatedResults,
+      data: finalData,
       pagination: {
         page,
         limit,
         total,
         totalPages: Math.ceil(total / limit),
       },
-      source: 'fallback-data',
+      source: includeBlockchain ? 'fallback+blockchain' : 'fallback-data',
+      blockchain_enabled: includeBlockchain
     });
   }
 }
 
-// POST - Регистрация нового провера
+// Твоя существующая POST функция (оставляем как есть)
 export async function POST(request: NextRequest) {
+  // ... весь твой существующий код остается без изменений
   try {
     const body = await request.json();
-    const { nickname, gpu_model, location } = body;
+    const { nickname, gpu_model, location, blockchain_address } = body; // Добавляем blockchain_address
 
     // Валидация данных
     if (!nickname || !gpu_model || !location) {
@@ -265,6 +249,7 @@ export async function POST(request: NextRequest) {
           nickname,
           gpu_model,
           location,
+          blockchain_address, // НОВОЕ поле
           status: 'offline',
           reputation_score: 0.00,
           total_orders: 0,
