@@ -206,7 +206,7 @@ export const useStore = create<AppStore>()(
         // Computed values
         activeOrders: () => {
           return get().orders.filter(order => 
-            order.status === 'pending' || order.status === 'processing'
+            ['pending', 'processing', 'in_progress'].includes(order.status)
           );
         },
         
@@ -215,11 +215,11 @@ export const useStore = create<AppStore>()(
         },
         
         topProvers: (limit = 10) => {
-          return get().provers
-            .sort((a, b) => b.earnings - a.earnings)
-            .slice(0, limit);
-        },
-        
+  return get().provers
+    .slice() // Сначала делаем копию!
+    .sort((a, b) => (b.earnings || 0) - (a.earnings || 0))
+    .slice(0, limit); // Потом только берём limit
+},   
         unreadNotifications: () => {
           return get().notifications.filter(notification => !notification.isRead);
         }
