@@ -305,3 +305,19 @@ export const storeHelpers = {
   },
   
   // Add an order update from WebSocket
+
+  // Add an order update from WebSocket
+  handleOrderUpdate: (orderData: Partial<OrderData> & { id: string }) => {
+    const { updateOrder, addOrder, orders } = useStore.getState();
+    const existingOrder = orders.find(o => o.id === orderData.id);
+    
+    if (existingOrder) {
+      updateOrder(orderData.id, orderData);
+    } else {
+      // Add as new order if it doesn't exist
+      if (orderData.type && orderData.status && orderData.reward !== undefined) {
+        addOrder(orderData as OrderData);
+      }
+    }
+  }
+};

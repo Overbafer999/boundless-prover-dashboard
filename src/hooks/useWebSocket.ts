@@ -41,12 +41,12 @@ export const useWebSocket = (network: NetworkInfo): UseWebSocketReturn => {
 
     switch (message.type) {
       case 'order_new':
-        storeHelpers.handleOrder(message.data as OrderData);
+        storeHelpers.handleOrderUpdate(message.data as OrderData);
         playNotificationSound();
         break;
         
       case 'order_update':
-        storeHelpers.handleOrder(message.data as OrderData);
+        storeHelpers.handleOrderUpdate(message.data as OrderData);
         break;
         
       case 'prover_update':
