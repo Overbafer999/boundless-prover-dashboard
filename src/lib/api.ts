@@ -15,7 +15,7 @@ function validateProverData(prover: any): ProverData | null {
     name: prover.name || prover.nickname,
     status: prover.status || 'offline',
     hashRate: typeof prover.hashRate === 'number' ? prover.hashRate : undefined,
-    earnings: typeof prover.earnings_usd === 'number' ? prover.earnings_usd : 
+    earnings: typeof prover.earnings_usd === 'number' ? prover.earnings_usd :
               typeof prover.earnings === 'number' ? prover.earnings : 0,
     earnings_usd: prover.earnings_usd,
     uptime: typeof prover.uptime === 'number' ? prover.uptime : undefined,
@@ -43,15 +43,15 @@ function validateOrderData(order: any): OrderData | null {
     id: order.id,
     type: order.type || 'proof',
     status: order.status || 'pending',
-    reward: typeof order.reward === 'number' ? order.reward : 
+    reward: typeof order.reward === 'number' ? order.reward :
             typeof order.price_usd === 'number' ? order.price_usd : 0,
     difficulty: order.difficulty,
     submittedAt: order.submittedAt || order.createdAt || new Date().toISOString(),
     createdAt: order.createdAt || order.submittedAt,
     completedAt: order.completedAt || order.completed_at,
     completed_at: order.completed_at,
-    proverId: order.proverId || order.prover || order.prover_id,
-    prover: order.prover || order.proverId,
+    proverId: order.proverId || order.prover_id || order.prover,
+    prover: order.prover || order.proverId || order.prover_id,
     prover_id: order.prover_id,
     client_id: order.client_id,
     priority: order.priority,
@@ -72,7 +72,6 @@ export const boundlessAPI = {
     limit?: number;
   }): Promise<ProverData[]> {
     try {
-      // Построение URL с параметрами
       const searchParams = new URLSearchParams();
       if (params?.q) searchParams.append('q', params.q);
       if (params?.status) searchParams.append('status', params.status);
@@ -83,26 +82,26 @@ export const boundlessAPI = {
 
       const url = `/api/provers${searchParams.toString() ? `?${searchParams}` : ''}`;
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const result: APIResponse<ProverData> = await response.json();
-      
+
       // Безопасная обработка ответа
-      const proversArray = Array.isArray(result.data) ? result.data : 
+      const proversArray = Array.isArray(result.data) ? result.data :
                           Array.isArray(result) ? result : [];
-      
+
       // Валидация и очистка данных
       const validProvers = proversArray
         .map(validateProverData)
         .filter((prover): prover is ProverData => prover !== null);
-      
+
       return validProvers;
     } catch (error) {
       console.error('Error fetching provers:', error);
-      
+
       // Fallback данные при ошибке
       return [
         {
@@ -117,7 +116,7 @@ export const boundlessAPI = {
           gpu_model: 'RTX 4090'
         },
         {
-          id: 'fallback-2', 
+          id: 'fallback-2',
           nickname: 'Prover Beta',
           status: 'busy',
           hashRate: 890,
@@ -149,7 +148,6 @@ export const boundlessAPI = {
     limit?: number;
   }): Promise<OrderData[]> {
     try {
-      // Построение URL с параметрами
       const searchParams = new URLSearchParams();
       if (params?.status) searchParams.append('status', params.status);
       if (params?.prover) searchParams.append('prover', params.prover);
@@ -158,26 +156,26 @@ export const boundlessAPI = {
 
       const url = `/api/orders${searchParams.toString() ? `?${searchParams}` : ''}`;
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const result: APIResponse<OrderData> = await response.json();
-      
+
       // Безопасная обработка ответа
-      const ordersArray = Array.isArray(result.data) ? result.data : 
+      const ordersArray = Array.isArray(result.data) ? result.data :
                          Array.isArray(result) ? result : [];
-      
+
       // Валидация и очистка данных
       const validOrders = ordersArray
         .map(validateOrderData)
         .filter((order): order is OrderData => order !== null);
-      
+
       return validOrders;
     } catch (error) {
       console.error('Error fetching orders:', error);
-      
+
       // Fallback данные при ошибке
       return [
         {
@@ -193,7 +191,7 @@ export const boundlessAPI = {
         {
           id: 'fallback-2',
           type: 'verification',
-          status: 'pending', 
+          status: 'pending',
           reward: 89.25,
           difficulty: 6,
           submittedAt: new Date().toISOString(),
@@ -236,7 +234,7 @@ export const boundlessAPI = {
 
       const result = await response.json();
       const validatedProver = validateProverData(result.data);
-      
+
       if (!validatedProver) {
         throw new Error('Invalid prover data received from server');
       }
