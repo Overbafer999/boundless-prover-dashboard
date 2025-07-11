@@ -647,4 +647,66 @@ export default function Dashboard() {
                 <div className="space-y-4">
                   {filteredActiveProvers.length > 0 ? (
                     filteredActiveProvers.map((prover, index) => (
-                      <ProverCard key={prover.id} prover={pr
+                      <ProverCard key={prover.id} prover={prover} index={index} />
+                    ))
+                  ) : searchTerm ? (
+                    <motion.div 
+                      className="text-center py-12 text-gray-400"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                    >
+                      <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg mb-2">No active provers found matching "{searchTerm}"</p>
+                      <p className="text-sm">Try searching by:</p>
+                      <ul className="text-sm mt-2 space-y-1">
+                        <li>• Prover nickname (CryptoMiner_Pro, ZK_Beast_2024, etc.)</li>
+                        <li>• Prover ID (prover-001, prover-002, etc.)</li>
+                        <li>• GPU model (RTX 4090, RTX 3080, etc.)</li>
+                        <li>• Location (US-East, EU-West, Asia-Pacific)</li>
+                      </ul>
+                    </motion.div>
+                  ) : activeProvers.length === 0 ? (
+                    <motion.div 
+                      className="text-center py-12 text-gray-400"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                    >
+                      <Zap className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg">No active provers at the moment</p>
+                      <p className="text-sm mt-2">All provers are currently offline</p>
+                    </motion.div>
+                  ) : (
+                    filteredActiveProvers.map((prover, index) => (
+                      <ProverCard key={prover.id} prover={prover} index={index} />
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Recent Orders */}
+            <div className="space-y-6">
+              <motion.h2 
+                className="text-3xl font-orbitron font-bold text-white drop-shadow-neon flex items-center gap-3"
+                whileHover={{ scale: 1.02 }}
+              >
+                <BarChart3 className="w-8 h-8 text-boundless-neon" />
+                Recent Orders
+              </motion.h2>
+              
+              {loading ? (
+                <LoadingSpinner />
+              ) : (
+                <div className="space-y-4">
+                  {orders.map((order, index) => (
+                    <OrderCard key={order.id} order={order} index={index} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
