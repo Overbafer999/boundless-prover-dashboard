@@ -5,6 +5,11 @@ const nextConfig = {
   },
   images: {
     unoptimized: true
+  },
+  // Добавим для CSS
+  swcMinify: true,
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
   }
 }
 
