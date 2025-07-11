@@ -1,216 +1,306 @@
 // src/app/api/provers/route.ts
-import { NextResponse } from 'next/server'
-import mysql from 'mysql2/promise'
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-// Конфигурация базы данных
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root', 
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'boundless_provers',
-  port: parseInt(process.env.DB_PORT || '3306')
-}
+// Инициализация Supabase клиента
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-// Создание подключения к базе данных
-async function getConnection() {
-  try {
-    const connection = await mysql.createConnection(dbConfig)
-    return connection
-  } catch (error) {
-    console.error('Database connection failed:', error)
-    throw new Error('Failed to connect to database')
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+// Fallback данные (если БД недоступна)
+const fallbackProvers = [
+  {
+    id: 'prover-001',
+    nickname: 'CryptoMiner_Pro',
+    gpu_model: 'RTX 4090',
+    location: 'US-East',
+    status: 'online',
+    reputation_score: 4.8,
+    total_orders: 156,
+    successful_orders: 152,
+    earnings_usd: 2847.50,
+    last_seen: new Date().toISOString(),
+  },
+  {
+    id: 'prover-002',
+    nickname: 'ZK_Beast_2024',
+    gpu_model: 'RTX 3080',
+    location: 'EU-West',
+    status: 'online',
+    reputation_score: 4.9,
+    total_orders: 203,
+    successful_orders: 199,
+    earnings_usd: 3921.75,
+    last_seen: new Date().toISOString(),
+  },
+  {
+    id: 'prover-003',
+    nickname: 'ProofMaster',
+    gpu_model: 'RTX 4080',
+    location: 'Asia-Pacific',
+    status: 'offline',
+    reputation_score: 4.7,
+    total_orders: 89,
+    successful_orders: 85,
+    earnings_usd: 1654.25,
+    last_seen: new Date(Date.now() - 30000).toISOString(),
+  },
+  {
+    id: 'prover-004',
+    nickname: 'TurboProver',
+    gpu_model: 'RTX 3090',
+    location: 'US-West',
+    status: 'online',
+    reputation_score: 4.6,
+    total_orders: 67,
+    successful_orders: 63,
+    earnings_usd: 1289.80,
+    last_seen: new Date().toISOString(),
+  },
+  {
+    id: 'prover-005',
+    nickname: 'ZeroKnowledge_X',
+    gpu_model: 'RTX 4070',
+    location: 'EU-Central',
+    status: 'maintenance',
+    reputation_score: 4.5,
+    total_orders: 134,
+    successful_orders: 128,
+    earnings_usd: 2341.90,
+    last_seen: new Date(Date.now() - 120000).toISOString(),
+  },
+  {
+    id: 'prover-006',
+    nickname: 'CryptoGuru_2024',
+    gpu_model: 'RTX 3070',
+    location: 'Canada-East',
+    status: 'online',
+    reputation_score: 4.4,
+    total_orders: 45,
+    successful_orders: 42,
+    earnings_usd: 892.15,
+    last_seen: new Date().toISOString(),
+  },
+  {
+    id: 'prover-007',
+    nickname: 'ProofWizard',
+    gpu_model: 'RTX 4060',
+    location: 'Australia',
+    status: 'offline',
+    reputation_score: 4.3,
+    total_orders: 78,
+    successful_orders: 73,
+    earnings_usd: 1456.70,
+    last_seen: new Date(Date.now() - 300000).toISOString(),
+  },
+  {
+    id: 'prover-008',
+    nickname: 'zkSNARK_King',
+    gpu_model: 'RTX 3060',
+    location: 'Japan',
+    status: 'online',
+    reputation_score: 4.2,
+    total_orders: 91,
+    successful_orders: 87,
+    earnings_usd: 1734.35,
+    last_seen: new Date().toISOString(),
+  },
+];
+
+// Функция поиска в fallback данных
+function searchFallbackProvers(query: string, filters: any = {}) {
+  let results = fallbackProvers;
+
+  if (query) {
+    const searchQuery = query.toLowerCase();
+    results = results.filter(prover =>
+      prover.nickname.toLowerCase().includes(searchQuery) ||
+      prover.id.toLowerCase().includes(searchQuery) ||
+      prover.gpu_model.toLowerCase().includes(searchQuery) ||
+      prover.location.toLowerCase().includes(searchQuery)
+    );
   }
+
+  // Применение фильтров
+  if (filters.status && filters.status !== 'all') {
+    results = results.filter(prover => prover.status === filters.status);
+  }
+
+  if (filters.gpu && filters.gpu !== 'all') {
+    results = results.filter(prover => 
+      prover.gpu_model.toLowerCase().includes(filters.gpu.toLowerCase())
+    );
+  }
+
+  if (filters.location && filters.location !== 'all') {
+    results = results.filter(prover => 
+      prover.location.toLowerCase().includes(filters.location.toLowerCase())
+    );
+  }
+
+  return results;
 }
 
-// Получение проверов из базы данных
-async function fetchProversFromDatabase(searchTerm?: string) {
-  const connection = await getConnection()
-  
+// GET - Получение проверов с поиском и фильтрами
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const query = searchParams.get('q') || '';
+  const status = searchParams.get('status') || 'all';
+  const gpu = searchParams.get('gpu') || 'all';
+  const location = searchParams.get('location') || 'all';
+  const page = parseInt(searchParams.get('page') || '1');
+  const limit = parseInt(searchParams.get('limit') || '10');
+  const offset = (page - 1) * limit;
+
   try {
-    let query = `
-      SELECT 
-        id,
-        user_nickname as name,
-        gpu_model as gpu,
-        location,
-        status,
-        hash_rate as hashRate,
-        total_earnings as earnings,
-        uptime_percentage as uptime,
-        last_active as lastActive,
-        user_wallet as wallet
-      FROM provers 
-      WHERE status IN ('online', 'busy')
-    `
-    
-    const params: any[] = []
-    
-    // Добавляем поиск если есть параметр
-    if (searchTerm) {
-      query += ` AND (
-        user_nickname LIKE ? OR 
-        id LIKE ? OR 
-        gpu_model LIKE ? OR 
-        location LIKE ? OR
-        user_wallet LIKE ?
-      )`
-      const searchPattern = `%${searchTerm}%`
-      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
+    // Построение запроса с фильтрами
+    let queryBuilder = supabase
+      .from('provers')
+      .select('*', { count: 'exact' });
+
+    // Поиск по тексту
+    if (query) {
+      queryBuilder = queryBuilder.or(
+        `nickname.ilike.%${query}%,id.ilike.%${query}%,gpu_model.ilike.%${query}%,location.ilike.%${query}%`
+      );
     }
-    
-    query += ` ORDER BY last_active DESC`
-    
-    const [rows] = await connection.execute(query, params)
-    return rows as any[]
-  } finally {
-    await connection.end()
-  }
-}
 
-// Получение статистики
-async function getProverStats() {
-  const connection = await getConnection()
-  
-  try {
-    const [stats] = await connection.execute(`
-      SELECT 
-        COUNT(*) as total,
-        COUNT(CASE WHEN status IN ('online', 'busy') THEN 1 END) as active,
-        SUM(total_earnings) as totalEarnings,
-        SUM(CASE WHEN status IN ('online', 'busy') THEN hash_rate ELSE 0 END) as totalHashRate,
-        AVG(uptime_percentage) as avgUptime
-      FROM provers
-    `)
-    
-    return (stats as any[])[0]
-  } finally {
-    await connection.end()
-  }
-}
+    // Фильтры
+    if (status !== 'all') {
+      queryBuilder = queryBuilder.eq('status', status);
+    }
 
-export async function GET(request: Request) {
-  try {
-    // Получаем параметры поиска из URL
-    const { searchParams } = new URL(request.url)
-    const search = searchParams.get('search')
-    
-    // Получаем данные из базы
-    const [provers, stats] = await Promise.all([
-      fetchProversFromDatabase(search || undefined),
-      getProverStats()
-    ])
-    
-    const response = {
+    if (gpu !== 'all') {
+      queryBuilder = queryBuilder.ilike('gpu_model', `%${gpu}%`);
+    }
+
+    if (location !== 'all') {
+      queryBuilder = queryBuilder.ilike('location', `%${location}%`);
+    }
+
+    // Сортировка и пагинация
+    const { data, count, error } = await queryBuilder
+      .order('status', { ascending: false })
+      .order('reputation_score', { ascending: false })
+      .order('last_seen', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json({
       success: true,
-      data: provers.map(prover => ({
-        ...prover,
-        lastActive: new Date(prover.lastActive).toISOString(),
-        earnings: parseFloat(prover.earnings || 0),
-        uptime: parseFloat(prover.uptime || 0),
-        hashRate: parseInt(prover.hashRate || 0)
-      })),
-      stats: {
-        total: parseInt(stats.total || 0),
-        active: parseInt(stats.active || 0), 
-        totalEarnings: parseFloat(stats.totalEarnings || 0),
-        totalHashRate: parseInt(stats.totalHashRate || 0),
-        avgUptime: parseFloat(stats.avgUptime || 0)
+      data: data || [],
+      pagination: {
+        page,
+        limit,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / limit),
       },
-      timestamp: new Date().toISOString(),
-      source: 'boundless-database-api',
-      searchTerm: search || null
-    }
-    
-    return NextResponse.json(response)
+      source: 'supabase',
+    });
+
   } catch (error) {
-    console.error('Provers API Error:', error)
+    console.error('Supabase error:', error);
     
-    // Fallback к статичным данным если БД недоступна
-    const fallbackData = [
-      {
-        id: 'prover-001',
-        name: 'CryptoMiner_Pro',
-        earnings: 2847.69,
-        hashRate: 1650,
-        status: 'online',
-        lastActive: new Date().toISOString(),
-        uptime: 98.5,
-        gpu: 'RTX 4090',
-        location: 'US-East',
-        wallet: '0x742d35Cc6641C0532a99F4b7c3A2d5F7b94e5f3a'
-      },
-      {
-        id: 'prover-002', 
-        name: 'ZK_Beast_2024',
-        earnings: 1543.22,
-        hashRate: 920,
-        status: 'busy',
-        lastActive: new Date().toISOString(),
-        uptime: 94.2,
-        gpu: 'RTX 3080',
-        location: 'EU-West',
-        wallet: '0x8ba1f109551bD432803012645Hac136c52416968'
-      }
-    ]
-    
+    // Fallback на тестовые данные
+    const fallbackResults = searchFallbackProvers(query, { status, gpu, location });
+    const total = fallbackResults.length;
+    const paginatedResults = fallbackResults.slice(offset, offset + limit);
+
     return NextResponse.json({
       success: false,
-      data: fallbackData,
       error: 'Database connection failed, using fallback data',
-      timestamp: new Date().toISOString(),
-      source: 'fallback-data'
-    }, { status: 500 })
+      data: paginatedResults,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+      source: 'fallback-data',
+    });
   }
 }
 
-// POST endpoint для регистрации нового провера
-export async function POST(request: Request) {
+// POST - Регистрация нового провера
+export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { nickname, wallet, gpu, location } = body
-    
-    // Валидация
-    if (!nickname || !wallet) {
+    const body = await request.json();
+    const { nickname, gpu_model, location } = body;
+
+    // Валидация данных
+    if (!nickname || !gpu_model || !location) {
       return NextResponse.json(
-        { success: false, error: 'Nickname and wallet are required' },
+        { success: false, error: 'Missing required fields: nickname, gpu_model, location' },
         { status: 400 }
-      )
+      );
     }
-    
-    const connection = await getConnection()
-    
+
+    // Генерация уникального ID
+    const id = `prover-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
     try {
-      // Генерируем уникальный ID
-      const proverId = `prover-${Date.now().toString(36)}`
-      
-      // Вставляем нового провера
-      await connection.execute(`
-        INSERT INTO provers (id, user_nickname, user_wallet, gpu_model, location, status)
-        VALUES (?, ?, ?, ?, ?, 'offline')
-      `, [proverId, nickname, wallet, gpu || 'Unknown', location || 'Unknown'])
-      
+      // Проверка на дубликаты nickname
+      const { data: existingProvers } = await supabase
+        .from('provers')
+        .select('id')
+        .eq('nickname', nickname)
+        .limit(1);
+
+      if (existingProvers && existingProvers.length > 0) {
+        return NextResponse.json(
+          { success: false, error: 'Nickname already exists' },
+          { status: 409 }
+        );
+      }
+
+      // Вставка нового провера
+      const { data, error } = await supabase
+        .from('provers')
+        .insert([{
+          id,
+          nickname,
+          gpu_model,
+          location,
+          status: 'offline',
+          reputation_score: 0.00,
+          total_orders: 0,
+          successful_orders: 0,
+          earnings_usd: 0.00,
+          last_seen: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
       return NextResponse.json({
         success: true,
-        data: {
-          id: proverId,
-          nickname,
-          wallet,
-          message: 'Prover registered successfully'
-        },
-        timestamp: new Date().toISOString()
-      })
-    } finally {
-      await connection.end()
+        data,
+        source: 'supabase',
+      });
+
+    } catch (dbError) {
+      console.error('Supabase error during registration:', dbError);
+      
+      return NextResponse.json(
+        { success: false, error: 'Database connection failed. Please try again later.' },
+        { status: 503 }
+      );
     }
+
   } catch (error) {
-    console.error('POST Provers API Error:', error)
+    console.error('POST error:', error);
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to register prover',
-        timestamp: new Date().toISOString()
-      },
-      { status: 500 }
-    )
+      { success: false, error: 'Invalid request format' },
+      { status: 400 }
+    );
   }
 }
