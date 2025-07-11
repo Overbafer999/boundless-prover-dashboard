@@ -1,27 +1,18 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Clock, DollarSign, Users } from 'lucide-react'
-
-interface OrderData {
-  id: string
-  reward: number
-  prover?: string
-  status: 'processing' | 'pending' | 'completed' | 'failed'
-  submittedAt?: string
-  createdAt?: string
-  priority?: 'high' | 'medium' | 'low'
-  timeLeft?: number
-}
+import type { OrderData, OrderStatus } from '@/lib/types'
 
 interface LiveOrderCardProps {
   order: OrderData
   index?: number
 }
 
-const StatusBadge = ({ status }: { status: string }) => {
+const StatusBadge = ({ status }: { status: OrderStatus }) => {
   const getStatusConfig = () => {
     switch (status) {
       case 'processing':
+      case 'in_progress':
         return {
           bg: 'bg-blue-500/20',
           text: 'text-blue-400',
@@ -43,6 +34,7 @@ const StatusBadge = ({ status }: { status: string }) => {
           glow: 'shadow-emerald-500/25'
         }
       case 'failed':
+      case 'cancelled':
         return {
           bg: 'bg-red-500/20',
           text: 'text-red-400',
@@ -72,8 +64,8 @@ const StatusBadge = ({ status }: { status: string }) => {
         <motion.div
           className={`w-1.5 h-1.5 rounded-full ${config.text.replace('text-', 'bg-')}`}
           animate={{ 
-            scale: status === 'processing' ? [1, 1.3, 1] : 1,
-            opacity: status === 'failed' ? [1, 0.3, 1] : 1
+            scale: status === 'processing' || status === 'in_progress' ? [1, 1.3, 1] : 1,
+            opacity: status === 'failed' || status === 'cancelled' ? [1, 0.3, 1] : 1
           }}
           transition={{ duration: 2, repeat: Infinity }}
         />
@@ -94,8 +86,6 @@ function safeCalculateTimeLeft(order: OrderData, defaultHours: number = 1): numb
     }
     
     const submitted = new Date(orderDate)
-    
-    // Проверяем валидность даты
     if (isNaN(submitted.getTime())) {
       console.warn('Invalid date format:', orderDate)
       return defaultHours * 3600
@@ -103,7 +93,6 @@ function safeCalculateTimeLeft(order: OrderData, defaultHours: number = 1): numb
     
     const now = Date.now()
     const elapsed = (now - submitted.getTime()) / 1000
-    
     return Math.max(0, defaultHours * 3600 - elapsed)
   } catch (error) {
     console.error('Error calculating time left:', error)
@@ -114,15 +103,12 @@ function safeCalculateTimeLeft(order: OrderData, defaultHours: number = 1): numb
 // Безопасная функция для форматирования времени
 function formatTime(seconds: number): string {
   if (!seconds || seconds <= 0) return '00:00'
-  
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   const secs = Math.floor(seconds % 60)
-  
   if (hours > 0) {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
-  
   return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
@@ -130,13 +116,10 @@ function formatTime(seconds: number): string {
 function safeFormatDate(dateString?: string): string {
   try {
     if (!dateString) return 'Unknown'
-    
     const date = new Date(dateString)
-    
     if (isNaN(date.getTime())) {
       return 'Invalid Date'
     }
-    
     return date.toLocaleString()
   } catch (error) {
     console.error('Error formatting date:', error)
@@ -146,22 +129,14 @@ function safeFormatDate(dateString?: string): string {
 
 export default function LiveOrderCard({ order, index = 0 }: LiveOrderCardProps) {
   // Безопасный расчет времени с проверками
-  const [timeLeft, setTimeLeft] = useState(() => {
-    return safeCalculateTimeLeft(order)
-  })
+  const [timeLeft, setTimeLeft] = useState(() => safeCalculateTimeLeft(order))
 
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft(prev => Math.max(0, prev - 1))
     }, 1000)
-
     return () => clearInterval(timer)
   }, [])
-
-  useEffect(() => {
-    if (timeLeft <= 0) return
-    // Дополнительная логика при истечении времени
-  }, [timeLeft])
 
   // Безопасное получение данных заказа
   const orderId = order?.id || 'Unknown'
@@ -181,7 +156,6 @@ export default function LiveOrderCard({ order, index = 0 }: LiveOrderCardProps) 
     >
       <div className="absolute inset-0 bg-gradient-to-br from-boundless-accent/5 to-boundless-neon/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
       <div className="absolute top-0 left-0 w-20 h-20 bg-gradient-to-br from-boundless-accent/20 to-transparent rounded-br-3xl" />
-      
       <div className="relative z-10">
         <div className="flex justify-between items-start mb-4">
           <div>
@@ -198,7 +172,7 @@ export default function LiveOrderCard({ order, index = 0 }: LiveOrderCardProps) 
               </span>
             )}
           </div>
-          <StatusBadge status={status} />
+          <StatusBadge status={status as OrderStatus} />
         </div>
         
         <div className="space-y-3 mb-4">
