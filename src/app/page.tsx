@@ -1,177 +1,226 @@
 'use client'
-import React from 'react'
+import React, { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { 
+  Activity, 
+  TrendingUp, 
+  Zap, 
+  RefreshCw,
+  Eye,
+  EyeOff,
+  ChevronRight,
+  BarChart3,
+  Users,
+  Clock,
+  DollarSign
+} from 'lucide-react'
 
 interface ProverData {
+  id: string
   name: string
   earnings: number
   hashRate: number
   status: 'online' | 'busy' | 'offline'
+  lastActive: string
+  uptime: number
+  gpu?: string
+  location?: string
 }
 
 interface OrderData {
   id: string
   reward: number
   prover?: string
-  status: 'processing' | 'pending' | 'completed'
+  status: 'processing' | 'pending' | 'completed' | 'failed'
+  createdAt: string
+  priority?: 'high' | 'medium' | 'low'
 }
 
-const provers: ProverData[] = [
-  { name: 'Prover Alpha', earnings: 1250.5, hashRate: 1250, status: 'online' },
-  { name: 'Prover Beta', earnings: 890.25, hashRate: 890, status: 'busy' },
-  { name: 'Prover Gamma', earnings: 654.75, hashRate: 0, status: 'offline' },
-]
-
-const orders: OrderData[] = [
-  { id: '#1', reward: 125.5, prover: 'Prover Alpha', status: 'processing' },
-  { id: '#2', reward: 89.25, status: 'pending' },
-  { id: '#3', reward: 234.75, prover: 'Prover Beta', status: 'completed' },
-]
+interface ApiResponse<T> {
+  success?: boolean
+  data?: T
+  timestamp?: string
+  source?: string
+}
 
 const StatusBadge = ({ status }: { status: string }) => {
-  const getStatusStyles = () => {
+  const getStatusConfig = () => {
     switch (status) {
       case 'online':
-        return 'bg-boundless-success/20 text-boundless-success border-boundless-success/50'
+        return {
+          bg: 'bg-emerald-500/20',
+          text: 'text-emerald-400',
+          border: 'border-emerald-500/50',
+          glow: 'shadow-emerald-500/25'
+        }
       case 'busy':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/50'
+        return {
+          bg: 'bg-blue-500/20',
+          text: 'text-blue-400',
+          border: 'border-blue-500/50',
+          glow: 'shadow-blue-500/25'
+        }
       case 'offline':
-        return 'bg-boundless-danger/20 text-boundless-danger border-boundless-danger/50'
+        return {
+          bg: 'bg-red-500/20',
+          text: 'text-red-400',
+          border: 'border-red-500/50',
+          glow: 'shadow-red-500/25'
+        }
       case 'processing':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/50'
+        return {
+          bg: 'bg-blue-500/20',
+          text: 'text-blue-400',
+          border: 'border-blue-500/50',
+          glow: 'shadow-blue-500/25'
+        }
       case 'pending':
-        return 'bg-boundless-warning/20 text-boundless-warning border-boundless-warning/50'
+        return {
+          bg: 'bg-yellow-500/20',
+          text: 'text-yellow-400',
+          border: 'border-yellow-500/50',
+          glow: 'shadow-yellow-500/25'
+        }
       case 'completed':
-        return 'bg-boundless-success/20 text-boundless-success border-boundless-success/50'
+        return {
+          bg: 'bg-emerald-500/20',
+          text: 'text-emerald-400',
+          border: 'border-emerald-500/50',
+          glow: 'shadow-emerald-500/25'
+        }
+      case 'failed':
+        return {
+          bg: 'bg-red-500/20',
+          text: 'text-red-400',
+          border: 'border-red-500/50',
+          glow: 'shadow-red-500/25'
+        }
       default:
-        return 'bg-gray-500/20 text-gray-400 border-gray-500/50'
+        return {
+          bg: 'bg-gray-500/20',
+          text: 'text-gray-400',
+          border: 'border-gray-500/50',
+          glow: 'shadow-gray-500/25'
+        }
     }
   }
 
+  const config = getStatusConfig()
+
   return (
-    <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusStyles()}`}>
-      {status}
-    </span>
+    <motion.span 
+      className={`px-3 py-1.5 rounded-full text-xs font-bold border ${config.bg} ${config.text} ${config.border} ${config.glow} shadow-lg backdrop-blur-sm`}
+      whileHover={{ scale: 1.05 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+    >
+      <span className="flex items-center gap-1">
+        <motion.div
+          className={`w-1.5 h-1.5 rounded-full ${config.text.replace('text-', 'bg-')}`}
+          animate={{ 
+            scale: status === 'processing' || status === 'busy' ? [1, 1.3, 1] : 1,
+            opacity: status === 'offline' ? [1, 0.3, 1] : 1
+          }}
+          transition={{ duration: 2, repeat: Infinity }}
+        />
+        {status.toUpperCase()}
+      </span>
+    </motion.span>
   )
 }
 
-const ProverCard = ({ prover }: { prover: ProverData }) => (
-  <div className="bg-boundless-card/40 backdrop-blur-sm rounded-2xl p-6 border border-boundless-accent/20 
-    hover:border-boundless-accent/40 transition-all duration-300 
-    hover:shadow-lg hover:shadow-boundless-accent/10
-    relative overflow-hidden group">
-    <div className="absolute inset-0 bg-gradient-to-br from-boundless-accent/5 to-boundless-neon/5 
-      opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+const LoadingSpinner = () => (
+  <motion.div 
+    className="flex items-center justify-center p-8"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+  >
+    <motion.div
+      animate={{ rotate: 360 }}
+      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+      className="rounded-full h-8 w-8 border-2 border-boundless-accent border-t-transparent"
+    />
+    <span className="ml-3 text-gray-400 font-medium">Loading real-time data...</span>
+  </motion.div>
+)
+
+const StatCard = ({ 
+  title, 
+  value, 
+  subtitle, 
+  icon: Icon, 
+  gradient,
+  delay = 0 
+}: {
+  title: string
+  value: string
+  subtitle: string
+  icon: any
+  gradient: string
+  delay?: number
+}) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay, duration: 0.5 }}
+    whileHover={{ scale: 1.02, y: -5 }}
+    className={`${gradient} rounded-2xl p-6 border border-white/10 backdrop-blur-sm shadow-xl hover:shadow-2xl transition-all duration-300 relative overflow-hidden group`}
+  >
+    <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+    
+    <div className="relative z-10">
+      <div className="flex items-center justify-between mb-4">
+        <motion.div
+          whileHover={{ rotate: 360 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Icon className="w-8 h-8 text-white/80" />
+        </motion.div>
+        <motion.div
+          animate={{ scale: [1, 1.1, 1] }}
+          transition={{ duration: 3, repeat: Infinity }}
+          className="w-2 h-2 rounded-full bg-white/60"
+        />
+      </div>
+      
+      <h3 className="text-lg font-bold text-white/90 mb-2">{title}</h3>
+      <motion.p 
+        className="text-3xl font-black text-white mb-1"
+        key={value}
+        initial={{ scale: 1.2, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+      >
+        {value}
+      </motion.p>
+      <p className="text-sm text-white/70">{subtitle}</p>
+    </div>
+  </motion.div>
+)
+
+const ProverCard = ({ prover, index }: { prover: ProverData; index: number }) => (
+  <motion.div
+    initial={{ opacity: 0, x: -20 }}
+    animate={{ opacity: 1, x: 0 }}
+    transition={{ delay: index * 0.1, duration: 0.5 }}
+    whileHover={{ scale: 1.02, y: -5 }}
+    className="bg-gradient-to-br from-boundless-card/60 to-boundless-card/40 backdrop-blur-sm rounded-2xl p-6 border border-boundless-accent/20 hover:border-boundless-accent/40 transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-boundless-accent/10 relative overflow-hidden group"
+  >
+    <div className="absolute inset-0 bg-gradient-to-br from-boundless-accent/5 to-boundless-neon/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+    <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-boundless-neon/20 to-transparent rounded-bl-3xl" />
     
     <div className="relative z-10">
       <div className="flex justify-between items-start mb-4">
-        <h3 className="text-xl font-orbitron font-bold text-white">{prover.name}</h3>
+        <div>
+          <h3 className="text-xl font-orbitron font-bold text-white mb-1">{prover.name}</h3>
+          <p className="text-xs text-gray-400">{prover.gpu} • {prover.location}</p>
+        </div>
         <StatusBadge status={prover.status} />
       </div>
       
-      <div className="space-y-2 text-gray-300">
-        <p className="flex justify-between">
-          <span>Earnings:</span>
-          <span className="font-bold text-boundless-accent">${prover.earnings.toFixed(2)}</span>
-        </p>
-        <p className="flex justify-between">
-          <span>Hash Rate:</span>
-          <span className="font-bold text-boundless-neon">{prover.hashRate} H/s</span>
-        </p>
-      </div>
-    </div>
-  </div>
-)
-
-const OrderCard = ({ order }: { order: OrderData }) => (
-  <div className="bg-boundless-card/40 backdrop-blur-sm rounded-2xl p-6 border border-boundless-accent/20 
-    hover:border-boundless-accent/40 transition-all duration-300 
-    hover:shadow-lg hover:shadow-boundless-accent/10
-    relative overflow-hidden group">
-    <div className="absolute inset-0 bg-gradient-to-br from-boundless-accent/5 to-boundless-neon/5 
-      opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-    
-    <div className="relative z-10">
-      <div className="flex justify-between items-start mb-4">
-        <h3 className="text-xl font-orbitron font-bold text-white">Order {order.id}</h3>
-        <StatusBadge status={order.status} />
-      </div>
-      
-      <div className="space-y-2 text-gray-300">
-        <p className="flex justify-between">
-          <span>Reward:</span>
-          <span className="font-bold text-boundless-accent">${order.reward.toFixed(2)}</span>
-        </p>
-        {order.prover && (
-          <p className="flex justify-between">
-            <span>Prover:</span>
-            <span className="font-bold text-boundless-neon">{order.prover}</span>
-          </p>
-        )}
-      </div>
-    </div>
-  </div>
-)
-
-export default function Dashboard() {
-  return (
-    <div className="min-h-screen space-y-8 pb-12">
-      {/* Hero Section */}
-      <div className="text-center py-12">
-        <h1 className="text-5xl font-orbitron font-extrabold text-white mb-4 drop-shadow-neon">
-          Welcome to Boundless
-        </h1>
-        <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-          Monitor your provers, track earnings, and manage orders in real-time
-        </p>
-      </div>
-
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-        <div className="bg-gradient-to-br from-boundless-accent/20 to-boundless-neon/20 
-          rounded-2xl p-6 border border-boundless-accent/30">
-          <h3 className="text-lg font-orbitron font-bold text-boundless-accent mb-2">Total Earnings</h3>
-          <p className="text-3xl font-bold text-white">${provers.reduce((sum, p) => sum + p.earnings, 0).toFixed(2)}</p>
-        </div>
-        
-        <div className="bg-gradient-to-br from-boundless-neon/20 to-boundless-accent/20 
-          rounded-2xl p-6 border border-boundless-neon/30">
-          <h3 className="text-lg font-orbitron font-bold text-boundless-neon mb-2">Active Provers</h3>
-          <p className="text-3xl font-bold text-white">{provers.filter(p => p.status !== 'offline').length}</p>
-        </div>
-        
-        <div className="bg-gradient-to-br from-boundless-success/20 to-boundless-accent/20 
-          rounded-2xl p-6 border border-boundless-success/30">
-          <h3 className="text-lg font-orbitron font-bold text-boundless-success mb-2">Orders Completed</h3>
-          <p className="text-3xl font-bold text-white">{orders.filter(o => o.status === 'completed').length}</p>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Active Provers */}
-        <div className="space-y-6">
-          <h2 className="text-3xl font-orbitron font-bold text-white drop-shadow-neon">
-            Active Provers
-          </h2>
-          <div className="space-y-4">
-            {provers.map((prover, index) => (
-              <ProverCard key={index} prover={prover} />
-            ))}
-          </div>
-        </div>
-
-        {/* Recent Orders */}
-        <div className="space-y-6">
-          <h2 className="text-3xl font-orbitron font-bold text-white drop-shadow-neon">
-            Recent Orders
-          </h2>
-          <div className="space-y-4">
-            {orders.map((order, index) => (
-              <OrderCard key={index} order={order} />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <span className="text-gray-300 text-sm">Earnings:</span>
+            <motion.span 
+              className="font-bold text-boundless-accent"
+              whileHover={{ scale: 1.1 }}
