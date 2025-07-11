@@ -6,35 +6,39 @@ import { DollarSign, TrendingUp, TrendingDown, Calendar } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 
 interface EarningsData {
-  today: number
-  yesterday: number
-  thisWeek: number
-  thisMonth: number
-  change24h: number
-  changeWeek: number
-  changeMonth: number
+  today?: number
+  yesterday?: number
+  thisWeek?: number
+  thisMonth?: number
+  change24h?: number
+  changeWeek?: number
+  changeMonth?: number
 }
 
 interface EarningsCardProps {
   earnings: EarningsData
 }
 
+// Безопасная функция
+const safe = (n: number | undefined) => typeof n === 'number' ? n : 0
+
 export default function EarningsCard({ earnings }: EarningsCardProps) {
-  const getTrendIcon = (change: number) => {
-    return change >= 0 ? (
+  const getTrendIcon = (change: number | undefined) => {
+    return safe(change) >= 0 ? (
       <TrendingUp className="w-4 h-4 text-green-500" />
     ) : (
       <TrendingDown className="w-4 h-4 text-red-500" />
     )
   }
 
-  const getTrendColor = (change: number) => {
-    return change >= 0 ? 'text-green-600' : 'text-red-600'
+  const getTrendColor = (change: number | undefined) => {
+    return safe(change) >= 0 ? 'text-green-600' : 'text-red-600'
   }
 
-  const formatChange = (change: number) => {
-    const sign = change >= 0 ? '+' : ''
-    return `${sign}${change.toFixed(1)}%`
+  const formatChange = (change: number | undefined) => {
+    const c = safe(change)
+    const sign = c >= 0 ? '+' : ''
+    return `${sign}${c.toFixed(1)}%`
   }
 
   return (
@@ -59,7 +63,7 @@ export default function EarningsCard({ earnings }: EarningsCardProps) {
             {getTrendIcon(earnings.change24h)}
           </div>
           <div className="text-2xl font-bold text-blue-900 mb-1">
-            {formatCurrency(earnings.today)}
+            {formatCurrency(safe(earnings.today))}
           </div>
           <div className={`text-sm ${getTrendColor(earnings.change24h)}`}>
             {formatChange(earnings.change24h)} vs yesterday
@@ -78,7 +82,7 @@ export default function EarningsCard({ earnings }: EarningsCardProps) {
             {getTrendIcon(earnings.changeWeek)}
           </div>
           <div className="text-2xl font-bold text-purple-900 mb-1">
-            {formatCurrency(earnings.thisWeek)}
+            {formatCurrency(safe(earnings.thisWeek))}
           </div>
           <div className={`text-sm ${getTrendColor(earnings.changeWeek)}`}>
             {formatChange(earnings.changeWeek)} vs last week
@@ -97,7 +101,7 @@ export default function EarningsCard({ earnings }: EarningsCardProps) {
             {getTrendIcon(earnings.changeMonth)}
           </div>
           <div className="text-2xl font-bold text-green-900 mb-1">
-            {formatCurrency(earnings.thisMonth)}
+            {formatCurrency(safe(earnings.thisMonth))}
           </div>
           <div className={`text-sm ${getTrendColor(earnings.changeMonth)}`}>
             {formatChange(earnings.changeMonth)} vs last month
@@ -110,14 +114,15 @@ export default function EarningsCard({ earnings }: EarningsCardProps) {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="flex items-center justify-between">
             <span className="text-gray-600">Yesterday:</span>
-            <span className="font-semibold">{formatCurrency(earnings.yesterday)}</span>
+            <span className="font-semibold">{formatCurrency(safe(earnings.yesterday))}</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-gray-600">Avg. Daily:</span>
-            <span className="font-semibold">{formatCurrency(earnings.thisWeek / 7)}</span>
+            <span className="font-semibold">{formatCurrency(safe(earnings.thisWeek) / 7)}</span>
           </div>
         </div>
       </div>
     </div>
   )
 }
+
