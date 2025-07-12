@@ -131,14 +131,18 @@ async function parseBlockchainEvents(useExtendedRange = false) {
     // Собираем уникальные адреса проверов
     const proverAddresses = new Set<string>()
     
-    // Добавляем проверов из всех событий
-    const allProverLogs = requestFulfilledLogs.concat(requestLockedLogs);
-allProverLogs.forEach(log => {
+    // Добавляем проверов из выполненных заказов
+requestFulfilledLogs.forEach(log => {
   if (log.args?.prover) {
     proverAddresses.add(log.args.prover.toLowerCase())
   }
 })
-    
+    // Добавляем проверов из заблокированных заказов
+requestLockedLogs.forEach(log => {
+  if (log.args?.prover) {
+    proverAddresses.add(log.args.prover.toLowerCase())
+  }
+})
     stakeDepositLogs.forEach(log => {
       if (log.args?.account) {
         proverAddresses.add(log.args.account.toLowerCase())
