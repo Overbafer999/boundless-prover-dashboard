@@ -262,7 +262,7 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
                           )}
                         </button>
                         
-                          href={`https://basescan.org/address/${prover.blockchain_address}`}
+                          <a href={`https://basescan.org/address/${prover.blockchain_address}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
