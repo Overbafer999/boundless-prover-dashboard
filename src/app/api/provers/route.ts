@@ -132,11 +132,12 @@ async function parseBlockchainEvents(useExtendedRange = false) {
     const proverAddresses = new Set<string>()
     
     // Добавляем проверов из всех событий
-    [...requestFulfilledLogs, ...requestLockedLogs].forEach(log => {
-      if (log.args?.prover) {
-        proverAddresses.add(log.args.prover.toLowerCase())
-      }
-    })
+    const allProverLogs = requestFulfilledLogs.concat(requestLockedLogs);
+allProverLogs.forEach(log => {
+  if (log.args?.prover) {
+    proverAddresses.add(log.args.prover.toLowerCase())
+  }
+})
     
     stakeDepositLogs.forEach(log => {
       if (log.args?.account) {
