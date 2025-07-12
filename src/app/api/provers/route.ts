@@ -247,7 +247,10 @@ async function parseBlockchainEventsOptimized(forDashboard = false, useCache = t
       total_orders: 67,
       successful_orders: 61,
       earnings_usd: 987.75,
-      last_seen: new Date(Date.now() - 1800000).toISOString()
+      last_seen: new Date(Date.now() - 1800000).toISOString(),
+      blockchain_address: '0x7f8c8a2d4e1b6c5a3f9e8d7c6b5a4f3e2d1c0b9a'
+    }
+  ]
     }
   ]
   
