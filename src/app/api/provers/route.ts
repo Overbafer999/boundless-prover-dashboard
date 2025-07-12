@@ -15,7 +15,7 @@ const publicClient = createPublicClient({
   transport: http('https://mainnet.base.org')
 })
 
-// ABI для Boundless Market Contract (без изменений)
+// ABI для Boundless Market Contract
 const BOUNDLESS_MARKET_ABI = [
   {
     inputs: [{ name: 'addr', type: 'address' }],
@@ -221,280 +221,7 @@ async function parseBlockchainEventsOptimized(forDashboard = false, useCache = t
         total_orders: locked,
         successful_orders: fulfilled,
         slashes,
-        last_seen: new Date().toISOString(),
-      blockchain_address: '0xb607e44023f850d5833c0d1a5d62acad3a5b162e'
-    },
-    {
-      id: 'prover-002',
-      nickname: 'ZK_Validator_Alpha',
-      gpu_model: 'RTX 3080',
-      location: 'EU-West',
-      status: 'busy',
-      reputation_score: 4.2,
-      total_orders: 89,
-      successful_orders: 86,
-      earnings_usd: 1654.25,
-      last_seen: new Date().toISOString(),
-      blockchain_address: '0x9430ad33b47e2e84bad1285c9d9786ac628800e4'
-    },
-    {
-      id: 'prover-003',
-      nickname: 'ProofWorker_X',
-      gpu_model: 'RTX 3070',
-      location: 'Asia-Pacific',
-      status: 'offline',
-      reputation_score: 3.9,
-      total_orders: 67,
-      successful_orders: 61,
-      earnings_usd: 987.75,
-      last_seen: new Date(Date.now() - 1800000).toISOString(),
-      blockchain_address: '0x7f8c8a2d4e1b6c5a3f9e8d7c6b5a4f3e2d1c0b9a'
-    }
-  ]
-    }
-  ]
-  
-  if (!query && Object.keys(filters).length === 0) {
-    return fallbackProvers
-  }
-  
-  return fallbackProvers.filter(prover => {
-    const matchesQuery = !query || 
-      prover.nickname.toLowerCase().includes(query.toLowerCase()) ||
-      prover.gpu_model.toLowerCase().includes(query.toLowerCase()) ||
-      prover.location.toLowerCase().includes(query.toLowerCase()) ||
-      (prover.blockchain_address && prover.blockchain_address.toLowerCase().includes(query.toLowerCase()))
-    
-    const matchesStatus = !filters.status || filters.status === 'all' || prover.status === filters.status
-    const matchesGpu = !filters.gpu || filters.gpu === 'all' || prover.gpu_model.toLowerCase().includes(filters.gpu.toLowerCase())
-    const matchesLocation = !filters.location || filters.location === 'all' || prover.location.toLowerCase().includes(filters.location.toLowerCase())
-    
-    return matchesQuery && matchesStatus && matchesGpu && matchesLocation
-  })
-}
-
-// 🚀 ГЛАВНАЯ GET функция с оптимизированными endpoints
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const query = searchParams.get('q') || '';
-  const status = searchParams.get('status') || 'all';
-  const gpu = searchParams.get('gpu') || 'all';
-  const location = searchParams.get('location') || 'all';
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '10');
-  const offset = (page - 1) * limit;
-  
-  const includeBlockchain = searchParams.get('blockchain') === 'true';
-  const includeRealData = searchParams.get('realdata') === 'true';
-  
-  // 🚀 СУПЕР БЫСТРЫЙ ENDPOINT для dashboard статистики
-  if (searchParams.get('stats') === 'true') {
-    try {
-      console.log('📊 Dashboard stats request - using optimized function');
-      const dashboardStats = await getDashboardStatsOptimized();
-      return NextResponse.json({
-        success: true,
-        data: dashboardStats,
-        source: 'blockchain_analysis_optimized',
-        cache_used: blockchainCache.dashboardStats ? true : false
-      });
-    } catch (error) {
-      console.error('❌ Stats calculation failed:', error);
-      return NextResponse.json({
-        success: false,
-        error: 'Stats calculation failed',
-        data: {
-          totalEarnings: "28547.50",
-          activeProvers: 156,
-          verifiedOnChain: 134,
-          totalOrdersCompleted: 2847,
-          totalHashRate: 18653
-        },
-        source: 'fallback_stats'
-      });
-    }
-  }
-
-  try {
-    console.log(`🚀 API Request: blockchain=${includeBlockchain}, realdata=${includeRealData}, query="${query}"`)
-    
-    // Supabase запрос остается БЕЗ ИЗМЕНЕНИЙ
-    let queryBuilder = supabase
-      .from('provers')
-      .select('*', { count: 'exact' });
-
-    if (query) {
-      queryBuilder = queryBuilder.or(
-        `nickname.ilike.%${query}%,id.ilike.%${query}%,gpu_model.ilike.%${query}%,location.ilike.%${query}%,blockchain_address.ilike.%${query}%`
-      );
-    }
-
-    if (status !== 'all') {
-      queryBuilder = queryBuilder.eq('status', status);
-    }
-
-    if (gpu !== 'all') {
-      queryBuilder = queryBuilder.ilike('gpu_model', `%${gpu}%`);
-    }
-
-    if (location !== 'all') {
-      queryBuilder = queryBuilder.ilike('location', `%${location}%`);
-    }
-
-    const { data, count, error } = await queryBuilder
-      .order('status', { ascending: false })
-      .order('reputation_score', { ascending: false })
-      .order('last_seen', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (error) {
-      throw error;
-    }
-
-    let finalData = data || [];
-
-    // 🚀 Обогащаем ОПТИМИЗИРОВАННЫМИ blockchain данными
-    if (includeBlockchain) {
-      try {
-        finalData = await enrichWithBlockchainDataOptimized(finalData, includeRealData, query);
-      } catch (blockchainError) {
-        console.error('❌ Blockchain enrichment failed:', blockchainError);
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: finalData,
-      pagination: {
-        page,
-        limit,
-        total: count || 0,
-        totalPages: Math.ceil((count || 0) / limit),
-      },
-      source: includeBlockchain ? 
-        (includeRealData ? 'supabase+blockchain_optimized+realdata' : 'supabase+blockchain_optimized') : 
-        'supabase',
-      blockchain_enabled: includeBlockchain,
-      real_data_enabled: includeRealData,
-      cache_info: {
-        dashboard_cache_age: blockchainCache.lastUpdate ? Date.now() - blockchainCache.lastUpdate : null,
-        cache_available: !!blockchainCache.dashboardStats
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Supabase error:', error);
-    
-    // Fallback на тестовые данные
-    const fallbackResults = searchFallbackProvers(query, { status, gpu, location });
-    let finalData = fallbackResults.slice(offset, offset + limit);
-
-    // 🚀 Обогащаем ОПТИМИЗИРОВАННЫМИ blockchain данными даже в fallback
-    if (includeBlockchain) {
-      try {
-        finalData = await enrichWithBlockchainDataOptimized(finalData, includeRealData, query);
-      } catch (blockchainError) {
-        console.error('❌ Blockchain enrichment failed in fallback:', blockchainError);
-      }
-    }
-
-    const total = fallbackResults.length;
-
-    return NextResponse.json({
-      success: false,
-      error: 'Database connection failed, using fallback data',
-      data: finalData,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-      source: includeBlockchain ? 
-        (includeRealData ? 'fallback+blockchain_optimized+realdata' : 'fallback+blockchain_optimized') : 
-        'fallback-data',
-      blockchain_enabled: includeBlockchain,
-      real_data_enabled: includeRealData
-    });
-  }
-}
-
-// ♻️ POST функция остается БЕЗ ИЗМЕНЕНИЙ
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { nickname, gpu_model, location, blockchain_address } = body;
-
-    if (!nickname || !gpu_model || !location) {
-      return NextResponse.json(
-        { success: false, error: 'Missing required fields: nickname, gpu_model, location' },
-        { status: 400 }
-      );
-    }
-
-    const id = `prover-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-    try {
-      const { data: existingProvers } = await supabase
-        .from('provers')
-        .select('id')
-        .eq('nickname', nickname)
-        .limit(1);
-
-      if (existingProvers && existingProvers.length > 0) {
-        return NextResponse.json(
-          { success: false, error: 'Nickname already exists' },
-          { status: 409 }
-        );
-      }
-
-      const { data, error } = await supabase
-        .from('provers')
-        .insert([{
-          id,
-          nickname,
-          gpu_model,
-          location,
-          blockchain_address,
-          status: 'offline',
-          reputation_score: 0.00,
-          total_orders: 0,
-          successful_orders: 0,
-          earnings_usd: 0.00,
-          last_seen: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }])
-        .select()
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      return NextResponse.json({
-        success: true,
-        data,
-        source: 'supabase',
-      });
-
-    } catch (dbError) {
-      console.error('❌ Supabase error during registration:', dbError);
-      
-      return NextResponse.json(
-        { success: false, error: 'Database connection failed. Please try again later.' },
-        { status: 503 }
-      );
-    }
-
-  } catch (error) {
-    console.error('❌ POST error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Invalid request format' },
-      { status: 400 }
-    );
-  }
-}activity_block: lastActivity,
+        last_activity_block: lastActivity,
         reputation_score: locked > 0 ? ((fulfilled - slashes) / locked * 5).toFixed(1) : 0,
         success_rate: locked > 0 ? ((fulfilled / locked) * 100).toFixed(1) : 0
       })
@@ -912,7 +639,7 @@ async function enrichWithBlockchainDataOptimized(provers: any[], includeRealData
   return enrichedProvers
 }
 
-// ♻️ Функция поиска fallback проверов остается БЕЗ ИЗМЕНЕНИЙ
+// ♻️ Функция поиска fallback проверов
 function searchFallbackProvers(query: string, filters: any = {}) {
   const fallbackProvers = [
     {
@@ -925,4 +652,274 @@ function searchFallbackProvers(query: string, filters: any = {}) {
       total_orders: 156,
       successful_orders: 152,
       earnings_usd: 2847.50,
-      last_
+      last_seen: new Date().toISOString(),
+      blockchain_address: '0xb607e44023f850d5833c0d1a5d62acad3a5b162e'
+    },
+    {
+      id: 'prover-002',
+      nickname: 'ZK_Validator_Alpha',
+      gpu_model: 'RTX 3080',
+      location: 'EU-West',
+      status: 'busy',
+      reputation_score: 4.2,
+      total_orders: 89,
+      successful_orders: 86,
+      last_seen: new Date().toISOString(),
+      blockchain_address: '0x9430ad33b47e2e84bad1285c9d9786ac628800e4'
+    },
+    {
+      id: 'prover-003',
+      nickname: 'ProofWorker_X',
+      gpu_model: 'RTX 3070',
+      location: 'Asia-Pacific',
+      status: 'offline',
+      reputation_score: 3.9,
+      total_orders: 67,
+      successful_orders: 61,
+      earnings_usd: 987.75,
+      last_seen: new Date(Date.now() - 1800000).toISOString(),
+      blockchain_address: '0x7f8c8a2d4e1b6c5a3f9e8d7c6b5a4f3e2d1c0b9a'
+    }
+  ]
+  
+  if (!query && Object.keys(filters).length === 0) {
+    return fallbackProvers
+  }
+  
+  return fallbackProvers.filter(prover => {
+    const matchesQuery = !query || 
+      prover.nickname.toLowerCase().includes(query.toLowerCase()) ||
+      prover.gpu_model.toLowerCase().includes(query.toLowerCase()) ||
+      prover.location.toLowerCase().includes(query.toLowerCase()) ||
+      (prover.blockchain_address && prover.blockchain_address.toLowerCase().includes(query.toLowerCase()))
+    
+    const matchesStatus = !filters.status || filters.status === 'all' || prover.status === filters.status
+    const matchesGpu = !filters.gpu || filters.gpu === 'all' || prover.gpu_model.toLowerCase().includes(filters.gpu.toLowerCase())
+    const matchesLocation = !filters.location || filters.location === 'all' || prover.location.toLowerCase().includes(filters.location.toLowerCase())
+    
+    return matchesQuery && matchesStatus && matchesGpu && matchesLocation
+  })
+}
+
+// 🚀 ГЛАВНАЯ GET функция с оптимизированными endpoints
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const query = searchParams.get('q') || '';
+  const status = searchParams.get('status') || 'all';
+  const gpu = searchParams.get('gpu') || 'all';
+  const location = searchParams.get('location') || 'all';
+  const page = parseInt(searchParams.get('page') || '1');
+  const limit = parseInt(searchParams.get('limit') || '10');
+  const offset = (page - 1) * limit;
+  
+  const includeBlockchain = searchParams.get('blockchain') === 'true';
+  const includeRealData = searchParams.get('realdata') === 'true';
+  
+  // 🚀 СУПЕР БЫСТРЫЙ ENDPOINT для dashboard статистики
+  if (searchParams.get('stats') === 'true') {
+    try {
+      console.log('📊 Dashboard stats request - using optimized function');
+      const dashboardStats = await getDashboardStatsOptimized();
+      return NextResponse.json({
+        success: true,
+        data: dashboardStats,
+        source: 'blockchain_analysis_optimized',
+        cache_used: blockchainCache.dashboardStats ? true : false
+      });
+    } catch (error) {
+      console.error('❌ Stats calculation failed:', error);
+      return NextResponse.json({
+        success: false,
+        error: 'Stats calculation failed',
+        data: {
+          totalEarnings: "28547.50",
+          activeProvers: 156,
+          verifiedOnChain: 134,
+          totalOrdersCompleted: 2847,
+          totalHashRate: 18653
+        },
+        source: 'fallback_stats'
+      });
+    }
+  }
+
+  try {
+    console.log(`🚀 API Request: blockchain=${includeBlockchain}, realdata=${includeRealData}, query="${query}"`)
+    
+    // Supabase запрос остается БЕЗ ИЗМЕНЕНИЙ
+    let queryBuilder = supabase
+      .from('provers')
+      .select('*', { count: 'exact' });
+
+    if (query) {
+      queryBuilder = queryBuilder.or(
+        `nickname.ilike.%${query}%,id.ilike.%${query}%,gpu_model.ilike.%${query}%,location.ilike.%${query}%,blockchain_address.ilike.%${query}%`
+      );
+    }
+
+    if (status !== 'all') {
+      queryBuilder = queryBuilder.eq('status', status);
+    }
+
+    if (gpu !== 'all') {
+      queryBuilder = queryBuilder.ilike('gpu_model', `%${gpu}%`);
+    }
+
+    if (location !== 'all') {
+      queryBuilder = queryBuilder.ilike('location', `%${location}%`);
+    }
+
+    const { data, count, error } = await queryBuilder
+      .order('status', { ascending: false })
+      .order('reputation_score', { ascending: false })
+      .order('last_seen', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    let finalData = data || [];
+
+    // 🚀 Обогащаем ОПТИМИЗИРОВАННЫМИ blockchain данными
+    if (includeBlockchain) {
+      try {
+        finalData = await enrichWithBlockchainDataOptimized(finalData, includeRealData, query);
+      } catch (blockchainError) {
+        console.error('❌ Blockchain enrichment failed:', blockchainError);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: finalData,
+      pagination: {
+        page,
+        limit,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / limit),
+      },
+      source: includeBlockchain ? 
+        (includeRealData ? 'supabase+blockchain_optimized+realdata' : 'supabase+blockchain_optimized') : 
+        'supabase',
+      blockchain_enabled: includeBlockchain,
+      real_data_enabled: includeRealData,
+      cache_info: {
+        dashboard_cache_age: blockchainCache.lastUpdate ? Date.now() - blockchainCache.lastUpdate : null,
+        cache_available: !!blockchainCache.dashboardStats
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Supabase error:', error);
+    
+    // Fallback на тестовые данные
+    const fallbackResults = searchFallbackProvers(query, { status, gpu, location });
+    let finalData = fallbackResults.slice(offset, offset + limit);
+
+    // 🚀 Обогащаем ОПТИМИЗИРОВАННЫМИ blockchain данными даже в fallback
+    if (includeBlockchain) {
+      try {
+        finalData = await enrichWithBlockchainDataOptimized(finalData, includeRealData, query);
+      } catch (blockchainError) {
+        console.error('❌ Blockchain enrichment failed in fallback:', blockchainError);
+      }
+    }
+
+    const total = fallbackResults.length;
+
+    return NextResponse.json({
+      success: false,
+      error: 'Database connection failed, using fallback data',
+      data: finalData,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+      source: includeBlockchain ? 
+        (includeRealData ? 'fallback+blockchain_optimized+realdata' : 'fallback+blockchain_optimized') : 
+        'fallback-data',
+      blockchain_enabled: includeBlockchain,
+      real_data_enabled: includeRealData
+    });
+  }
+}
+
+// ♻️ POST функция остается БЕЗ ИЗМЕНЕНИЙ
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { nickname, gpu_model, location, blockchain_address } = body;
+
+    if (!nickname || !gpu_model || !location) {
+      return NextResponse.json(
+        { success: false, error: 'Missing required fields: nickname, gpu_model, location' },
+        { status: 400 }
+      );
+    }
+
+    const id = `prover-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    try {
+      const { data: existingProvers } = await supabase
+        .from('provers')
+        .select('id')
+        .eq('nickname', nickname)
+        .limit(1);
+
+      if (existingProvers && existingProvers.length > 0) {
+        return NextResponse.json(
+          { success: false, error: 'Nickname already exists' },
+          { status: 409 }
+        );
+      }
+
+      const { data, error } = await supabase
+        .from('provers')
+        .insert([{
+          id,
+          nickname,
+          gpu_model,
+          location,
+          blockchain_address,
+          status: 'offline',
+          reputation_score: 0.00,
+          total_orders: 0,
+          successful_orders: 0,
+          earnings_usd: 0.00,
+          last_seen: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      return NextResponse.json({
+        success: true,
+        data,
+        source: 'supabase',
+      });
+
+    } catch (dbError) {
+      console.error('❌ Supabase error during registration:', dbError);
+      
+      return NextResponse.json(
+        { success: false, error: 'Database connection failed. Please try again later.' },
+        { status: 503 }
+      );
+    }
+
+  } catch (error) {
+    console.error('❌ POST error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Invalid request format' },
+      { status: 400 }
+    );
+  }
+}
