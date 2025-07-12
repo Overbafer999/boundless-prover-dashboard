@@ -76,7 +76,11 @@ const BOUNDLESS_MARKET_ABI = [
 ] as const
 
 // 🚀 НОВАЯ СИСТЕМА: Умное кеширование для экономии RPC запросов
-let blockchainCache = {
+let blockchainCache: {
+  lastUpdate: number;
+  data: any;
+  dashboardStats: any;
+} = {
   lastUpdate: 0,
   data: null,
   dashboardStats: null
