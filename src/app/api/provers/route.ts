@@ -201,7 +201,7 @@ async function parseBlockchainEvents() {
 }
 
 // ОБНОВЛЕННАЯ функция обогащения blockchain данными
-async function enrichWithBlockchainData(provers: any[], includeRealData = false) {
+async function enrichWithBlockchainData(provers: any[], includeRealData = false, searchQuery = '') {
   let realProverStats = new Map()
   
   // Если запрошены реальные данные - парсим события
@@ -294,6 +294,50 @@ async function enrichWithBlockchainData(provers: any[], includeRealData = false)
     })
   }
   
+  // НОВЫЙ КОД: Прямой поиск по адресу
+  if (searchQuery && searchQuery.match(/^0x[a-fA-F0-9]{40}$/)) {
+    console.log('🔍 Direct address search:', searchQuery)
+    
+    const address = searchQuery.toLowerCase()
+    
+    // Проверяем не добавили ли уже этот адрес
+    const alreadyExists = enrichedProvers.some(p => 
+      p.blockchain_address?.toLowerCase() === address
+    )
+    
+    if (!alreadyExists) {
+      try {
+        // Получаем балансы для введенного адреса
+        const ethBalance = await contract.read.balanceOf([searchQuery as `0x${string}`])
+        const stakeBalance = await contract.read.balanceOfStake([searchQuery as `0x${string}`])
+        
+        // Добавляем найденного провера
+        enrichedProvers.push({
+          id: `direct-${address.slice(2, 8)}`,
+          nickname: `Prover_${address.slice(2, 8)}`,
+          blockchain_address: address,
+          blockchain_verified: true,
+          eth_balance: formatEther(ethBalance),
+          stake_balance: formatEther(stakeBalance),
+          is_active_onchain: Number(stakeBalance) > 0,
+          status: Number(stakeBalance) > 0 ? 'online' : 'offline',
+          gpu_model: 'Unknown GPU',
+          location: 'Unknown',
+          earnings_usd: 0,
+          total_orders: 0,
+          successful_orders: 0,
+          reputation_score: 0,
+          last_seen: new Date().toISOString(),
+          source: 'direct_address_lookup'
+        })
+        
+        console.log('✅ Direct address found and added!')
+      } catch (error) {
+        console.error('❌ Direct address lookup failed:', error)
+      }
+    }
+  }
+  
   return enrichedProvers
 }
 
@@ -348,7 +392,8 @@ function searchFallbackProvers(query: string, filters: any = {}) {
     const matchesQuery = !query || 
       prover.nickname.toLowerCase().includes(query.toLowerCase()) ||
       prover.gpu_model.toLowerCase().includes(query.toLowerCase()) ||
-      prover.location.toLowerCase().includes(query.toLowerCase())
+      prover.location.toLowerCase().includes(query.toLowerCase()) ||
+      (prover.blockchain_address && prover.blockchain_address.toLowerCase().includes(query.toLowerCase()))
     
     const matchesStatus = !filters.status || filters.status === 'all' || prover.status === filters.status
     const matchesGpu = !filters.gpu || filters.gpu === 'all' || prover.gpu_model.toLowerCase().includes(filters.gpu.toLowerCase())
@@ -371,10 +416,10 @@ export async function GET(request: NextRequest) {
   
   // НОВЫЕ параметры
   const includeBlockchain = searchParams.get('blockchain') === 'true';
-  const includeRealData = searchParams.get('realdata') === 'true'; // НОВЫЙ параметр для реальных данных
+  const includeRealData = searchParams.get('realdata') === 'true';
   
   try {
-    console.log(`🚀 API Request: blockchain=${includeBlockchain}, realdata=${includeRealData}`)
+    console.log(`🚀 API Request: blockchain=${includeBlockchain}, realdata=${includeRealData}, query="${query}"`)
     
     // Суpabase запрос (твой существующий код)
     let queryBuilder = supabase
@@ -383,7 +428,7 @@ export async function GET(request: NextRequest) {
 
     if (query) {
       queryBuilder = queryBuilder.or(
-        `nickname.ilike.%${query}%,id.ilike.%${query}%,gpu_model.ilike.%${query}%,location.ilike.%${query}%`
+        `nickname.ilike.%${query}%,id.ilike.%${query}%,gpu_model.ilike.%${query}%,location.ilike.%${query}%,blockchain_address.ilike.%${query}%`
       );
     }
 
@@ -412,9 +457,9 @@ export async function GET(request: NextRequest) {
     let finalData = data || [];
 
     // Обогащаем blockchain данными
-    if (includeBlockchain && finalData.length > 0) {
+    if (includeBlockchain) {
       try {
-        finalData = await enrichWithBlockchainData(finalData, includeRealData);
+        finalData = await enrichWithBlockchainData(finalData, includeRealData, query);
       } catch (blockchainError) {
         console.error('❌ Blockchain enrichment failed:', blockchainError);
       }
@@ -446,7 +491,7 @@ export async function GET(request: NextRequest) {
     // Обогащаем blockchain данными даже в fallback
     if (includeBlockchain) {
       try {
-        finalData = await enrichWithBlockchainData(finalData, includeRealData);
+        finalData = await enrichWithBlockchainData(finalData, includeRealData, query);
       } catch (blockchainError) {
         console.error('❌ Blockchain enrichment failed in fallback:', blockchainError);
       }
