@@ -1,5 +1,6 @@
 // Core types for Boundless Prover Dashboard
 // === Типы статусов для унификации по всему проекту ===
+
 /** Prover Status */
 export type ProverStatus =
   | 'online'
@@ -17,6 +18,7 @@ export type OrderStatus =
   | 'cancelled'
 
 // === Основные типы ===
+
 export interface ProverData {
   id: string;
   nickname: string;  // Основное поле для имени провера
@@ -30,6 +32,7 @@ export interface ProverData {
   lastUpdate?: string;
   last_seen?: string;     // API поле для последней активности
   lastActive?: string;    // Fallback поле
+  last_active?: string;   // НОВОЕ: дополнительное поле для активности
   timeLeft?: number;
   gpu_model?: string;     // API поле для GPU
   gpu?: string;           // Fallback поле
@@ -73,10 +76,22 @@ export interface OrderData {
   price_usd?: number;
 }
 
+// НОВЫЙ: Интерфейс для dashboard статистики
+export interface DashboardStats {
+  totalEarnings: string;
+  activeProvers: number;
+  verifiedOnChain: number;
+  totalOrdersCompleted: number;
+  totalHashRate: number;
+}
+
+// ОБНОВЛЕННЫЙ: NetworkInfo с дополнительными полями
 export interface NetworkInfo {
   isConnected: boolean;
   latency?: number;
   lastUpdate: string;
+  blockchainEnabled?: boolean;  // НОВОЕ
+  realDataEnabled?: boolean;    // НОВОЕ
 }
 
 export interface WebSocketMessage {
@@ -99,15 +114,18 @@ export interface ConnectionStatus {
   reconnectAttempts: number;
 }
 
+// ОБНОВЛЕННЫЙ: StoreState с dashboard статистикой
 export interface StoreState {
   provers: ProverData[];
   orders: OrderData[];
   earnings: EarningsData;
   networkInfo: NetworkInfo;
+  dashboardStats?: DashboardStats;  // НОВОЕ
   isLoading: boolean;
   error: string | null;
 }
 
+// ОБНОВЛЕННЫЙ: MarketStats с blockchain данными
 export interface MarketStats {
   totalValueLocked: number;
   activeProvers: number;
@@ -116,6 +134,9 @@ export interface MarketStats {
   successRate: number;
   averageReward: number;
   avgResponseTime: number;
+  blockchainVerified?: number;      // НОВОЕ
+  totalStaked?: string;             // НОВОЕ
+  networkHashRate?: number;         // НОВОЕ
 }
 
 export interface NotificationData {
@@ -128,18 +149,52 @@ export interface NotificationData {
   isRead: boolean;
 }
 
-// API Response типы
+// ОБНОВЛЕННЫЙ: API Response типы с новыми источниками данных
 export interface APIResponse<T> {
   success: boolean;
   data: T[];
   error?: string;
-  source: 'supabase' | 'fallback-data' | 'boundless-order-api';
+  source: 'supabase' | 'fallback-data' | 'boundless-order-api' | 'supabase+blockchain' | 'supabase+blockchain+realdata' | 'fallback+blockchain+realdata' | 'blockchain_analysis';  // ОБНОВЛЕНО
   pagination?: {
     page: number;
     limit: number;
     total: number;
     totalPages: number;
   };
+  blockchain_enabled?: boolean;     // НОВОЕ
+  real_data_enabled?: boolean;      // НОВОЕ
+}
+
+// НОВЫЙ: Специальный тип для API статистики
+export interface StatsAPIResponse {
+  success: boolean;
+  data: DashboardStats;
+  error?: string;
+  source: 'blockchain_analysis' | 'fallback';
+}
+
+// НОВЫЙ: Тип для параметров поиска проверов
+export interface ProverSearchOptions {
+  query?: string;
+  status?: string;
+  gpu?: string;
+  location?: string;
+  page?: number;
+  limit?: number;
+  includeBlockchain?: boolean;
+  includeRealData?: boolean;
+}
+
+// НОВЫЙ: Тип для blockchain утилит
+export interface BlockchainUtils {
+  formatAddress: (address: string) => string;
+  formatBalance: (balance: string | number, symbol?: string) => string;
+  getExplorerUrl: (address: string) => string;
+  isValidAddress: (address: string) => boolean;
+  formatEarnings: (earnings: number) => string;
+  formatHashRate: (hashRate: number) => string;
+  getStatusColor: (status: string) => string;
+  calculateSuccessRate: (successful: number, total: number) => number;
 }
 
 // Утилитарные типы для безопасной работы с данными
@@ -149,4 +204,62 @@ export interface SafeProverData extends Required<Pick<ProverData, 'id' | 'nickna
   gpu_model: string;
   location: string;
   last_seen: string;
+  blockchain_verified: boolean;     // НОВОЕ: всегда присутствует
+  eth_balance: string;              // НОВОЕ: всегда присутствует  
+  stake_balance: string;            // НОВОЕ: всегда присутствует
+}
+
+// НОВЫЙ: Тип для расширенной информации о провере
+export interface EnhancedProverData extends ProverData {
+  // Гарантированные поля после обработки API
+  displayName: string;              // nickname || name || id
+  formattedEarnings: string;        // отформатированные доходы
+  formattedBalance: string;         // отформатированный баланс
+  statusColor: string;              // CSS класс для статуса
+  isActiveOnChain: boolean;         // простое boolean значение
+  successRatePercent: number;       // success_rate как число
+  uptimePercent: number;            // uptime как число
+  lastSeenFormatted: string;        // отформатированная дата
+}
+
+// НОВЫЙ: Конфигурация для компонентов
+export interface ComponentConfig {
+  enableBlockchainData: boolean;
+  enableRealTimeUpdates: boolean;
+  refreshInterval: number;
+  maxSearchResults: number;
+  defaultFilters: ProverSearchOptions;
+}
+
+// НОВЫЙ: События для отслеживания активности
+export interface ActivityEvent {
+  id: string;
+  type: 'search' | 'select' | 'refresh' | 'error';
+  timestamp: string;
+  data: any;
+  source: string;
+}
+
+// Экспорт всех типов для удобства
+export type {
+  ProverStatus,
+  OrderStatus,
+  ProverData,
+  OrderData,
+  DashboardStats,
+  NetworkInfo,
+  WebSocketMessage,
+  EarningsData,
+  ConnectionStatus,
+  StoreState,
+  MarketStats,
+  NotificationData,
+  APIResponse,
+  StatsAPIResponse,
+  ProverSearchOptions,
+  BlockchainUtils,
+  SafeProverData,
+  EnhancedProverData,
+  ComponentConfig,
+  ActivityEvent
 }
