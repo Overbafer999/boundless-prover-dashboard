@@ -160,18 +160,18 @@ async function parseBlockchainEventsOptimized(forDashboard = false, useCache = t
     const proverAddresses = new Set<string>()
     
     // Добавляем проверов из выполненных заказов
-    requestFulfilledLogs.forEach(log => {
+    requestFulfilledLogs.forEach((log: any) => {
       if (log.args?.prover) {
         proverAddresses.add(log.args.prover.toLowerCase())
       }
     })
     // Добавляем проверов из заблокированных заказов
-    requestLockedLogs.forEach(log => {
+    requestLockedLogs.forEach((log: any) => {
       if (log.args?.prover) {
         proverAddresses.add(log.args.prover.toLowerCase())
       }
     })
-    stakeDepositLogs.forEach(log => {
+    stakeDepositLogs.forEach((log: any) => {
       if (log.args?.account) {
         proverAddresses.add(log.args.account.toLowerCase())
       }
@@ -185,17 +185,17 @@ async function parseBlockchainEventsOptimized(forDashboard = false, useCache = t
     let totalEarnings = 0;
     
     Array.from(proverAddresses).forEach(address => {
-      const fulfilled = requestFulfilledLogs.filter(log => 
+      const fulfilled = requestFulfilledLogs.filter((log: any) => 
         log.args?.prover?.toLowerCase() === address
       ).length
       
-      const locked = requestLockedLogs.filter(log => 
+      const locked = requestLockedLogs.filter((log: any) => 
         log.args?.prover?.toLowerCase() === address
       ).length
       
-      const slashes = slashedLogs.filter(log => {
+      const slashes = slashedLogs.filter((log: any) => {
         const requestId = log.args?.requestId
-        const relatedRequest = requestLockedLogs.find(reqLog => 
+        const relatedRequest = requestLockedLogs.find((reqLog: any) => 
           reqLog.args?.requestId === requestId && 
           reqLog.args?.prover?.toLowerCase() === address
         )
@@ -204,11 +204,11 @@ async function parseBlockchainEventsOptimized(forDashboard = false, useCache = t
       
       const lastActivity = Math.max(
         ...requestFulfilledLogs
-          .filter(log => log.args?.prover?.toLowerCase() === address)
-          .map(log => Number(log.blockNumber)),
+          .filter((log: any) => log.args?.prover?.toLowerCase() === address)
+          .map((log: any) => Number(log.blockNumber)),
         ...requestLockedLogs
-          .filter(log => log.args?.prover?.toLowerCase() === address)
-          .map(log => Number(log.blockNumber)),
+          .filter((log: any) => log.args?.prover?.toLowerCase() === address)
+          .map((log: any) => Number(log.blockNumber)),
         0
       )
       
