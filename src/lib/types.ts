@@ -239,27 +239,3 @@ export interface ActivityEvent {
   data: any;
   source: string;
 }
-
-// Экспорт всех типов для удобства
-export type {
-  ProverStatus,
-  OrderStatus,
-  ProverData,
-  OrderData,
-  DashboardStats,
-  NetworkInfo,
-  WebSocketMessage,
-  EarningsData,
-  ConnectionStatus,
-  StoreState,
-  MarketStats,
-  NotificationData,
-  APIResponse,
-  StatsAPIResponse,
-  ProverSearchOptions,
-  BlockchainUtils,
-  SafeProverData,
-  EnhancedProverData,
-  ComponentConfig,
-  ActivityEvent
-}
