@@ -82,7 +82,7 @@ async function parseBlockchainEvents() {
     
     // Получаем последние 10000 блоков (примерно 1-2 дня на Base)
     const latestBlock = await publicClient.getBlockNumber()
-    const fromBlock = latestBlock - 10000n
+    const fromBlock = latestBlock > BigInt(10000) ? latestBlock - BigInt(10000) : BigInt(0)
     
     // Парсим события RequestFulfilled для активных проверов
     const requestFulfilledLogs = await publicClient.getLogs({
