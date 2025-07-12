@@ -332,53 +332,62 @@ async function enrichWithBlockchainData(provers: any[], includeRealData = false,
         .map(p => p.blockchain_address.toLowerCase())
     )
     
-    // Добавляем новых проверов найденных в блокчейне - ИСПРАВЛЕНО: используем for...of для await
-    for (const [address, stats] of realProverStats.entries()) {
-      if (!existingAddresses.has(address)) {
-        try {
-          // Получаем стейк баланс для расчета статистики
-          const stakeBalance = await contract.read.balanceOfStake([address as `0x${string}`])
-          const ethBalance = await contract.read.balanceOf([address as `0x${string}`])
-          const advancedStats = await calculateAdvancedStats(address, stats, stakeBalance);
-          
-          enrichedProvers.push({
-            id: `blockchain-${address.slice(2, 8)}`,
-            nickname: `Prover_${address.slice(2, 8)}`,
-            blockchain_address: address,
-            blockchain_verified: true,
-            onchain_activity: true,
+    // Добавляем новых проверов найденных в блокчейне - ИСПРАВЛЕНО: используем Promise.all
+    const newProvers = await Promise.all(
+      Array.from(realProverStats.entries()).map(async ([address, stats]) => {
+        if (!existingAddresses.has(address)) {
+          try {
+            // Получаем стейк баланс для расчета статистики
+            const stakeBalance = await contract.read.balanceOfStake([address as `0x${string}`])
+            const ethBalance = await contract.read.balanceOf([address as `0x${string}`])
+            const advancedStats = await calculateAdvancedStats(address, stats, stakeBalance);
             
-            // Blockchain балансы
-            eth_balance: formatEther(ethBalance),
-            stake_balance: formatEther(stakeBalance),
-            is_active_onchain: Number(stakeBalance) > 0,
-            
-            // Основная статистика
-            total_orders: stats.total_orders,
-            successful_orders: stats.successful_orders,
-            reputation_score: parseFloat(stats.reputation_score),
-            success_rate: parseFloat(stats.success_rate),
-            slashes: stats.slashes,
-            
-            // Расширенная статистика  
-            uptime: advancedStats.uptime,
-            hashRate: advancedStats.hash_rate,
-            last_active: advancedStats.last_active,
-            earnings: advancedStats.earnings,
-            earnings_usd: advancedStats.earnings,
-            
-            // Дополнительные поля
-            gpu_model: 'Unknown GPU',
-            location: 'Unknown',
-            status: Number(stakeBalance) > 0 ? 'online' : 'offline',
-            last_seen: new Date().toISOString(),
-            source: 'blockchain_discovery'
-          })
-        } catch (error) {
-          console.error(`❌ Error calculating stats for ${address}:`, error);
+            return {
+              id: `blockchain-${address.slice(2, 8)}`,
+              nickname: `Prover_${address.slice(2, 8)}`,
+              blockchain_address: address,
+              blockchain_verified: true,
+              onchain_activity: true,
+              
+              // Blockchain балансы
+              eth_balance: formatEther(ethBalance),
+              stake_balance: formatEther(stakeBalance),
+              is_active_onchain: Number(stakeBalance) > 0,
+              
+              // Основная статистика
+              total_orders: stats.total_orders,
+              successful_orders: stats.successful_orders,
+              reputation_score: parseFloat(stats.reputation_score),
+              success_rate: parseFloat(stats.success_rate),
+              slashes: stats.slashes,
+              
+              // Расширенная статистика  
+              uptime: advancedStats.uptime,
+              hashRate: advancedStats.hash_rate,
+              last_active: advancedStats.last_active,
+              earnings: advancedStats.earnings,
+              earnings_usd: advancedStats.earnings,
+              
+              // Дополнительные поля
+              gpu_model: 'Unknown GPU',
+              location: 'Unknown',
+              status: Number(stakeBalance) > 0 ? 'online' : 'offline',
+              last_seen: new Date().toISOString(),
+              source: 'blockchain_discovery'
+            }
+          } catch (error) {
+            console.error(`❌ Error calculating stats for ${address}:`, error);
+            return null;
+          }
         }
-      }
-    }
+        return null;
+      })
+    );
+    
+    // Добавляем только валидные проверы
+    newProvers.filter(Boolean).forEach(prover => {
+      if (prover) enrichedProvers.push(prover);
+    });
   }
   
   // НОВЫЙ КОД: Прямой поиск по адресу - ИСПРАВЛЕНО: добавлена расширенная статистика
