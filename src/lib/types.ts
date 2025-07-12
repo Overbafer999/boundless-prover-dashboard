@@ -1,7 +1,5 @@
 // Core types for Boundless Prover Dashboard
-
 // === Типы статусов для унификации по всему проекту ===
-
 /** Prover Status */
 export type ProverStatus =
   | 'online'
@@ -19,7 +17,6 @@ export type OrderStatus =
   | 'cancelled'
 
 // === Основные типы ===
-
 export interface ProverData {
   id: string;
   nickname: string;  // Основное поле для имени провера
@@ -41,6 +38,18 @@ export interface ProverData {
   successful_orders?: number;
   created_at?: string;
   updated_at?: string;
+  
+  // Blockchain поля
+  blockchain_address?: string;
+  blockchain_verified?: boolean;
+  eth_balance?: string;
+  stake_balance?: string;
+  is_active_onchain?: boolean;
+  success_rate?: string | number;
+  slashes?: number;
+  onchain_activity?: boolean;
+  source?: string;
+  last_blockchain_check?: string;
 }
 
 export interface OrderData {
