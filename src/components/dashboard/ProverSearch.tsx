@@ -28,6 +28,7 @@ interface ProverData {
   lastUpdated?: string
   last_seen?: string
   earnings_usd?: number
+  source?: string
   proofCapability?: {
     hasProofCapability: boolean | null
     recentVerifications: number
@@ -66,9 +67,11 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
   const searchProvers = async (searchQuery: string) => {
     if (!searchQuery.trim()) {
       setSearchResults([])
+      setError('')
       return
     }
 
+    console.log('🔍 Starting search for:', searchQuery)
     setIsSearching(true)
     setError('')
 
@@ -83,23 +86,39 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
         params.append('realdata', 'true')
       }
 
-      const response = await fetch(`/api/provers?${params}`)
+      const url = `/api/provers?${params}`
+      console.log('🌐 API URL:', url)
+
+      const response = await fetch(url)
       const result = await response.json()
+      
+      console.log('📊 API Response:', result)
+      console.log('🔗 Data source:', result.source)
+      console.log('👥 Found provers:', result.data)
 
       if (result.success || result.data) {
         const provers = Array.isArray(result.data) ? result.data : []
         setSearchResults(provers)
         setDataSource(result.source)
         
+        console.log('✅ Search successful, found', provers.length, 'provers')
+        
         if (provers.length === 0) {
           setError('No provers found matching your search')
+          console.log('⚠️ No provers found for query:', searchQuery)
+        } else {
+          // Log first prover details for debugging
+          console.log('🔍 First prover details:', provers[0])
         }
       } else {
-        setError(result.error || 'Failed to search provers')
+        const errorMsg = result.error || 'Failed to search provers'
+        setError(errorMsg)
+        console.error('❌ API Error:', errorMsg)
       }
     } catch (err) {
-      setError('Error connecting to prover network')
-      console.error('Search error:', err)
+      const errorMsg = 'Error connecting to prover network'
+      setError(errorMsg)
+      console.error('❌ Network Error:', err)
     } finally {
       setIsSearching(false)
     }
@@ -109,7 +128,12 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (query) {
+        console.log('⏰ Debounced search triggered for:', query)
         searchProvers(query)
+      } else {
+        setSearchResults([])
+        setError('')
+        setDataSource(null)
       }
     }, 500)
 
@@ -117,6 +141,7 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
   }, [query, useBlockchain])
 
   const handleProverSelect = (prover: ProverData) => {
+    console.log('👆 Prover selected:', prover)
     setSelectedProver(prover)
     onProverSelect?.(prover)
   }
@@ -126,8 +151,9 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
       await navigator.clipboard.writeText(address)
       setCopiedAddress(address)
       setTimeout(() => setCopiedAddress(''), 2000)
+      console.log('📋 Address copied:', address)
     } catch (err) {
-      console.error('Failed to copy address:', err)
+      console.error('❌ Failed to copy address:', err)
     }
   }
 
@@ -156,6 +182,7 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
   const getStatusText = (prover: ProverData) => {
     if (prover.blockchain_verified && prover.is_active_onchain) return 'ACTIVE ON-CHAIN'
     if (prover.status === 'online') return 'ONLINE'
+    if (prover.status === 'busy') return 'BUSY'
     if (prover.status === 'maintenance') return 'MAINTENANCE'
     return 'OFFLINE'
   }
@@ -168,7 +195,7 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search by prover nickname, ID, or blockchain address..."
+            placeholder="Enter prover address (0x...) for real-time blockchain data"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="w-full rounded-lg border border-border bg-background/50 py-3 pl-10 pr-4 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
@@ -196,10 +223,11 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
           {dataSource && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <div className={`h-2 w-2 rounded-full ${
-                dataSource.includes('blockchain') ? 'bg-green-500' : 
+                dataSource.includes('blockchain') || dataSource.includes('direct_address') ? 'bg-green-500' : 
                 dataSource.includes('supabase') ? 'bg-blue-500' : 'bg-yellow-500'
               }`} />
-              {dataSource.includes('blockchain') ? 'Live blockchain data' :
+              {dataSource.includes('direct_address') ? 'Direct blockchain lookup' :
+               dataSource.includes('blockchain') ? 'Live blockchain data' :
                dataSource.includes('supabase') ? 'Database data' : 'Cached data'}
             </div>
           )}
@@ -242,6 +270,11 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
                           ✓ VERIFIED
                         </span>
                       )}
+                      {prover.source && (
+                        <span className="rounded-full border border-blue-500/30 bg-blue-500/20 px-2 py-1 text-xs font-medium text-blue-400">
+                          {prover.source.replace('_', ' ').toUpperCase()}
+                        </span>
+                      )}
                     </div>
 
                     {/* Address */}
@@ -261,8 +294,8 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
                             <Copy className="h-4 w-4" />
                           )}
                         </button>
-                        
-                          <a href={`https://basescan.org/address/${prover.blockchain_address}`}
+                        <a 
+                          href={`https://basescan.org/address/${prover.blockchain_address}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
@@ -281,7 +314,7 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
                         </span>
                         <div className="font-medium text-green-400">
                           {prover.eth_balance ? 
-                            formatBalance(prover.eth_balance, 'ETH') :
+                            `${formatBalance(prover.eth_balance, 'ETH')} / ${formatBalance(prover.stake_balance, 'HP')}` :
                             prover.stake_balance ?
                             formatBalance(prover.stake_balance, 'HP') :
                             formatEarnings(prover.earnings_usd)
@@ -324,13 +357,13 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
       {/* Selected Prover Details */}
       {selectedProver && (
         <div className="rounded-lg border border-primary/50 bg-primary/5 p-6">
-          <h3 className="text-lg font-medium text-foreground mb-4">Selected Prover</h3>
+          <h3 className="text-lg font-medium text-foreground mb-4">Selected Prover Details</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <div className="text-sm">
                 <span className="text-muted-foreground">Address:</span>
-                <div className="font-mono text-sm">{selectedProver.blockchain_address || selectedProver.id}</div>
+                <div className="font-mono text-sm break-all">{selectedProver.blockchain_address || selectedProver.id}</div>
               </div>
               {selectedProver.nickname && (
                 <div className="text-sm">
@@ -338,10 +371,16 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
                   <div>{selectedProver.nickname}</div>
                 </div>
               )}
+              {selectedProver.eth_balance && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">ETH Balance:</span>
+                  <div className="font-medium text-blue-400">{formatBalance(selectedProver.eth_balance, 'ETH')}</div>
+                </div>
+              )}
               {selectedProver.stake_balance && (
                 <div className="text-sm">
-                  <span className="text-muted-foreground">Stake Balance:</span>
-                  <div>{formatBalance(selectedProver.stake_balance, 'HP')}</div>
+                  <span className="text-muted-foreground">HP Stake:</span>
+                  <div className="font-medium text-purple-400">{formatBalance(selectedProver.stake_balance, 'HP')}</div>
                 </div>
               )}
             </div>
@@ -353,7 +392,7 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
                   {selectedProver.blockchain_verified ? 'Blockchain Verified' : 'Database Only'}
                 </div>
               </div>
-              {selectedProver.reputation_score && (
+              {selectedProver.reputation_score !== undefined && (
                 <div className="text-sm">
                   <span className="text-muted-foreground">Reputation:</span>
                   <div>⭐ {selectedProver.reputation_score.toFixed(1)}/5.0</div>
@@ -363,8 +402,14 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
                 <div className="text-sm">
                   <span className="text-muted-foreground">On-Chain Status:</span>
                   <div className={selectedProver.is_active_onchain ? 'text-green-400' : 'text-red-400'}>
-                    {selectedProver.is_active_onchain ? 'Active' : 'Inactive'}
+                    {selectedProver.is_active_onchain ? 'Active (has stake)' : 'Inactive (no stake)'}
                   </div>
+                </div>
+              )}
+              {selectedProver.source && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Data Source:</span>
+                  <div className="text-blue-400">{selectedProver.source.replace('_', ' ')}</div>
                 </div>
               )}
             </div>
@@ -374,8 +419,8 @@ export default function ProverSearch({ onProverSelect }: ProverSearchProps) {
 
       {/* Help Text */}
       <div className="text-xs text-muted-foreground">
-        💡 <strong>Tip:</strong> Enter a prover nickname, ID, or Ethereum address for search.
-        Enable "Include blockchain data" for real-time verification from Base network.
+        💡 <strong>Tip:</strong> Enter a prover Ethereum address (0x...) to get real-time blockchain data.
+        Enable "Include blockchain data" for live verification from Base network.
       </div>
     </div>
   )
