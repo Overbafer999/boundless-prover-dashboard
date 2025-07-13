@@ -771,8 +771,9 @@ export async function GET(request: NextRequest) {
         
         console.log(`🔗 Processing ${addresses.length} live blockchain provers`)
         
-        for (const address of addresses) {
+        for (const addressKey of addresses) {
           try {
+            const address = addressKey as string; // ✅ Явная типизация
             const stats = proverStats.get(address);
             const ethBalance = await contract.read.balanceOf([address as `0x${string}`]);
             const stakeBalance = await contract.read.balanceOfStake([address as `0x${string}`]);
