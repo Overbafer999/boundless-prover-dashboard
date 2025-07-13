@@ -557,7 +557,7 @@ export default function Dashboard() {
       
     } catch (error) {
       console.error('❌ Failed to load dashboard stats:', error)
-      console.error('❌ Error details:', error.message)
+      console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error')
       
       // 🔄 ПОПРОБУЕМ ЕЩЕ РАЗ ЧЕРЕЗ СЕКУНДУ
       console.log('🔄 Retrying blockchain API in 2 seconds...')
