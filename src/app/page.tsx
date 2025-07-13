@@ -696,7 +696,7 @@ export default function Dashboard() {
       setLastUpdated(new Date().toLocaleTimeString())
       
     } catch (error) {
-      console.error('❌ Failed to fetch live data:', error)
+      console.error('❌ Failed to fetch live data:', error instanceof Error ? error.message : 'Unknown error')
       // Используем минимальный fallback при полном отказе API
       setProvers([])
       setOrders([])
@@ -734,7 +734,7 @@ export default function Dashboard() {
         console.log('✅ Found', foundProvers.length, 'live provers via blockchain')
       }
     } catch (error) {
-      console.error('❌ Live search failed:', error)
+      console.error('❌ Live search failed:', error instanceof Error ? error.message : 'Unknown search error')
     } finally {
       setIsSearching(false)
     }
