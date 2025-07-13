@@ -1,4 +1,4 @@
-// src/app/api/provers/route.ts - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ
+// src/app/api/provers/route.ts - ПОЛНАЯ ВОССТАНОВЛЕННАЯ ВЕРСИЯ
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createPublicClient, http, getContract, formatEther, parseAbiItem } from 'viem';
@@ -319,7 +319,6 @@ async function getDashboardStatsOptimized(timeframe = '1d') {
   try {
     console.log(`📊 Calculating optimized dashboard statistics for ${timeframe}...`)
     
-    // 🎯 Используем короткий диапазон + кеширование с timeframe
     const { proverStats, globalStats } = await parseBlockchainEventsOptimized(true, true, timeframe);
     
     const contract = getContract({
@@ -332,7 +331,6 @@ async function getDashboardStatsOptimized(timeframe = '1d') {
     let verifiedOnChain = 0;
     let totalHashRate = 0;
     
-    // 🚀 ОПТИМИЗАЦИЯ: проверяем только 5 адресов для dashboard (вместо 20)
     const addressesToCheck = Array.from(proverStats.keys()).slice(0, 5);
     
     if (addressesToCheck.length > 0) {
@@ -356,12 +354,10 @@ async function getDashboardStatsOptimized(timeframe = '1d') {
           if (hasStake) {
             activeProvers++;
             verifiedOnChain++;
-            // Примерный hash rate на основе стейка
             totalHashRate += Math.floor(stake * 1000) + 200;
           }
         });
         
-        // Экстраполируем для всех найденных проверов
         if (addressesToCheck.length > 0) {
           const scaleFactor = Math.max(proverStats.size / addressesToCheck.length, 1);
           activeProvers = Math.round(activeProvers * scaleFactor);
@@ -370,7 +366,6 @@ async function getDashboardStatsOptimized(timeframe = '1d') {
         }
       } catch (error) {
         console.error('❌ Stake balance checks failed:', error);
-        // Используем fallback значения с учетом timeframe
         const multiplier = timeframe === '1w' ? 2 : timeframe === '3d' ? 1.5 : 1;
         activeProvers = Math.round(8 * multiplier);
         verifiedOnChain = Math.round(6 * multiplier);
@@ -378,7 +373,7 @@ async function getDashboardStatsOptimized(timeframe = '1d') {
       }
     }
     
-    // 🎯 ИСПРАВЛЕНО: Умная логика с правильными multipliers
+    // ИСПРАВЛЕНО: Правильные multipliers только для cumulative данных
     const multiplier = timeframe === '1w' ? 3 : timeframe === '3d' ? 2 : 1;
     
     const baseStats = {
@@ -407,7 +402,6 @@ async function getDashboardStatsOptimized(timeframe = '1d') {
   } catch (error) {
     console.error(`❌ Error calculating dashboard stats for ${timeframe}:`, error);
     
-    // 🎯 ИСПРАВЛЕНО: Надежный fallback с правильными multipliers
     const multiplier = timeframe === '1w' ? 3 : timeframe === '3d' ? 2 : 1;
     
     return {
@@ -434,50 +428,37 @@ async function calculateAdvancedStats(address: string, realStats: any, stakeBala
   };
 
   if (realStats && realStats.total_orders > 0) {
-    // Если есть реальная активность из blockchain
     stats.total_orders = realStats.total_orders;
     stats.successful_orders = realStats.successful_orders;
-    
-    // Uptime = процент успешных заказов
     stats.uptime = Math.round((realStats.successful_orders / realStats.total_orders) * 100);
+    const ordersPerDay = realStats.total_orders / 30;
+    stats.hash_rate = Math.round(ordersPerDay * 24 * 10);
     
-    // Hash Rate = примерная производительность на основе активности
-    const ordersPerDay = realStats.total_orders / 30; // за месяц
-    stats.hash_rate = Math.round(ordersPerDay * 24 * 10); // H/s приблизительно
-    
-    // Последняя активность
     if (realStats.last_activity_block > 0) {
       stats.last_active = `Block ${realStats.last_activity_block}`;
     }
     
-    // Заработки на основе выполненных заказов
-    stats.earnings = realStats.successful_orders * 15.5; // $15.5 за заказ в среднем
+    stats.earnings = realStats.successful_orders * 15.5;
     
   } else if (Number(stakeBalance) > 0) {
-    // НОВАЯ ЛОГИКА: Если есть стейк, но нет недавней активности - генерируем разумные данные
     const ethAmount = Number(formatEther(stakeBalance));
     
-    // Базируемся на размере стейка для генерации статистики
     if (ethAmount > 0.001) {
-      // Активный провер с хорошим стейком
-      stats.total_orders = Math.floor(Math.random() * 15) + 5; // 5-20 заказов
-      stats.successful_orders = Math.floor(stats.total_orders * 0.8); // 80% успешность
-      stats.uptime = Math.floor(Math.random() * 20) + 80; // 80-100%
-      stats.hash_rate = Math.floor(Math.random() * 300) + 200; // 200-500 H/s
+      stats.total_orders = Math.floor(Math.random() * 15) + 5;
+      stats.successful_orders = Math.floor(stats.total_orders * 0.8);
+      stats.uptime = Math.floor(Math.random() * 20) + 80;
+      stats.hash_rate = Math.floor(Math.random() * 300) + 200;
       stats.last_active = 'Recently active';
       stats.earnings = stats.successful_orders * 15.5;
     } else {
-      // Новый провер или с небольшим стейком
-      stats.total_orders = Math.floor(Math.random() * 5) + 1; // 1-5 заказов
-      stats.successful_orders = Math.floor(stats.total_orders * 0.9); // 90% успешность
-      stats.uptime = Math.floor(Math.random() * 15) + 85; // 85-100%
-      stats.hash_rate = Math.floor(Math.random() * 200) + 100; // 100-300 H/s
+      stats.total_orders = Math.floor(Math.random() * 5) + 1;
+      stats.successful_orders = Math.floor(stats.total_orders * 0.9);
+      stats.uptime = Math.floor(Math.random() * 15) + 85;
+      stats.hash_rate = Math.floor(Math.random() * 200) + 100;
       stats.last_active = 'Recently active';
       stats.earnings = stats.successful_orders * 15.5;
     }
-    
   } else {
-    // Нет стейка - неактивный провер
     stats.total_orders = 0;
     stats.successful_orders = 0;
     stats.uptime = 0;
@@ -489,11 +470,10 @@ async function calculateAdvancedStats(address: string, realStats: any, stakeBala
   return stats;
 }
 
-// 🔍 ОБНОВЛЕННАЯ функция обогащения: меньше RPC запросов для поиска
+// 🔍 ВОССТАНОВЛЕНО: Обновленная функция обогащения с timeframe
 async function enrichWithBlockchainDataOptimized(provers: any[], includeRealData = false, searchQuery = '', timeframe = '1d') {
   let realProverStats = new Map()
   
-  // Если запрошены реальные данные - парсим события (с кешированием)
   if (includeRealData) {
     const { proverStats } = await parseBlockchainEventsOptimized(false, true, timeframe);
     realProverStats = proverStats;
@@ -511,25 +491,19 @@ async function enrichWithBlockchainDataOptimized(provers: any[], includeRealData
         try {
           const address = prover.blockchain_address.toLowerCase()
           
-          // Получаем балансы
           const ethBalance = await contract.read.balanceOf([prover.blockchain_address as `0x${string}`])
           const stakeBalance = await contract.read.balanceOfStake([prover.blockchain_address as `0x${string}`])
           
-          // Обогащаем реальными данными из блокчейна
           const realStats = realProverStats.get(address)
-          
-          // Рассчитываем дополнительную статистику
           const advancedStats = await calculateAdvancedStats(address, realStats, stakeBalance);
           
           return {
             ...prover,
-            // Blockchain данные
             blockchain_verified: true,
             eth_balance: formatEther(ethBalance),
             stake_balance: formatEther(stakeBalance),
             is_active_onchain: Number(stakeBalance) > 0,
             
-            // Приоритет реальным данным, fallback к advancedStats
             total_orders: realStats?.total_orders || advancedStats.total_orders,
             successful_orders: realStats?.successful_orders || advancedStats.successful_orders,
             reputation_score: realStats ? parseFloat(realStats.reputation_score) : (advancedStats.total_orders > 0 ? parseFloat(((advancedStats.successful_orders / advancedStats.total_orders) * 5).toFixed(1)) : 0),
@@ -537,7 +511,6 @@ async function enrichWithBlockchainDataOptimized(provers: any[], includeRealData
             slashes: realStats?.slashes || 0,
             onchain_activity: realStats ? true : Number(stakeBalance) > 0,
             
-            // Расширенная статистика
             uptime: advancedStats.uptime,
             hashRate: advancedStats.hash_rate,
             last_active: advancedStats.last_active,
@@ -561,7 +534,7 @@ async function enrichWithBlockchainDataOptimized(provers: any[], includeRealData
     })
   )
   
-  // 🚀 ОПТИМИЗАЦИЯ: добавляем только 5 новых проверов (вместо 10)
+  // 🚀 ОПТИМИЗАЦИЯ: добавляем только 5 новых проверов
   if (includeRealData && realProverStats.size > 0) {
     console.log(`🔗 Adding ${Math.min(realProverStats.size, 5)} real blockchain provers`)
     
@@ -571,7 +544,6 @@ async function enrichWithBlockchainDataOptimized(provers: any[], includeRealData
         .map(p => p.blockchain_address.toLowerCase())
     )
     
-    // Берем только первые 5 новых проверов для экономии времени
     const newAddresses = Array.from(realProverStats.entries()).slice(0, 5);
     
     const newProvers = await Promise.all(
@@ -589,26 +561,22 @@ async function enrichWithBlockchainDataOptimized(provers: any[], includeRealData
               blockchain_verified: true,
               onchain_activity: true,
               
-              // Blockchain балансы
               eth_balance: formatEther(ethBalance),
               stake_balance: formatEther(stakeBalance),
               is_active_onchain: Number(stakeBalance) > 0,
               
-              // Основная статистика
               total_orders: stats.total_orders || advancedStats.total_orders,
               successful_orders: stats.successful_orders || advancedStats.successful_orders,
               reputation_score: parseFloat(stats.reputation_score) || (advancedStats.total_orders > 0 ? parseFloat(((advancedStats.successful_orders / advancedStats.total_orders) * 5).toFixed(1)) : 0),
               success_rate: parseFloat(stats.success_rate) || (advancedStats.total_orders > 0 ? parseFloat(((advancedStats.successful_orders / advancedStats.total_orders) * 100).toFixed(1)) : 0),
               slashes: stats.slashes || 0,
               
-              // Расширенная статистика  
               uptime: advancedStats.uptime,
               hashRate: advancedStats.hash_rate,
               last_active: advancedStats.last_active,
               earnings: advancedStats.earnings,
               earnings_usd: advancedStats.earnings,
               
-              // Дополнительные поля
               gpu_model: 'Unknown GPU',
               location: 'Unknown',
               status: Number(stakeBalance) > 0 ? 'online' : 'offline',
@@ -624,13 +592,12 @@ async function enrichWithBlockchainDataOptimized(provers: any[], includeRealData
       })
     );
     
-    // Добавляем только валидные проверы
     newProvers.filter(Boolean).forEach(prover => {
       if (prover) enrichedProvers.push(prover);
     });
   }
   
-  // 🔍 Прямой поиск по адресу остается БЕЗ ИЗМЕНЕНИЙ
+  // 🔍 ВОССТАНОВЛЕНО: Прямой поиск по адресу
   if (searchQuery && searchQuery.match(/^0x[a-fA-F0-9]{40}$/)) {
     console.log('🔍 Direct address search:', searchQuery)
     
@@ -654,18 +621,15 @@ async function enrichWithBlockchainDataOptimized(provers: any[], includeRealData
           blockchain_address: address,
           blockchain_verified: true,
           
-          // Балансы
           eth_balance: formatEther(ethBalance),
           stake_balance: formatEther(stakeBalance),
           is_active_onchain: Number(stakeBalance) > 0,
           
-          // Статистика с fallback
           total_orders: realStats?.total_orders || advancedStats.total_orders,
           successful_orders: realStats?.successful_orders || advancedStats.successful_orders,
           reputation_score: realStats ? parseFloat(realStats.reputation_score) : (advancedStats.total_orders > 0 ? (advancedStats.successful_orders / advancedStats.total_orders * 5) : 0),
           slashes: realStats?.slashes || 0,
           
-          // Расширенная статистика
           uptime: advancedStats.uptime,
           hashRate: advancedStats.hash_rate,
           last_active: advancedStats.last_active,
@@ -804,7 +768,7 @@ export async function GET(request: NextRequest) {
   try {
     console.log(`🚀 API Request: blockchain=${includeBlockchain}, realdata=${includeRealData}, timeframe=${timeframe}, query="${query}"`)
     
-    // 🔥 ИСПРАВЛЕНО: BLOCKCHAIN ДАННЫЕ ПРИОРИТЕТ С TIMEFRAME!
+    // 🔥 ВОССТАНОВЛЕНО: BLOCKCHAIN ДАННЫЕ ПРИОРИТЕТ С TIMEFRAME!
     if (includeBlockchain && includeRealData) {
       console.log(`🔥 PRIORITY: Getting LIVE blockchain data for ${timeframe} first!`)
       
@@ -971,7 +935,7 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // 🔄 FALLBACK: Supabase только если blockchain недоступен или не запрошен
+    // 🔄 ВОССТАНОВЛЕНО: Supabase только если blockchain недоступен или не запрошен
     console.log(`📦 Fallback: Using Supabase data for ${timeframe}...`);
     
     let queryBuilder = supabase
