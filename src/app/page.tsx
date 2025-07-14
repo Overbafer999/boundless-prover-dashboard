@@ -59,6 +59,41 @@ interface DashboardStats {
   blockRange?: number
 }
 
+const debugDashboardAPI = async () => {
+  console.log('🔍 === API DEBUGGING START ===')
+  
+  const endpoints = [
+    '/api/provers?dashboard=true&timeframe=1d',
+    '/api/provers?timeframe=1d&dashboard=true', 
+    '/api/boundless-proxy'
+  ]
+  
+  for (const endpoint of endpoints) {
+    try {
+      console.log(`🧪 Testing: ${endpoint}`)
+      const response = await fetch(endpoint)
+      console.log(`📡 Status: ${response.status}`)
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log(`📊 Response structure:`, {
+          hasSuccess: 'success' in data,
+          hasData: 'data' in data,
+          keys: Object.keys(data),
+          sample: data
+        })
+      } else {
+        const errorText = await response.text()
+        console.log(`❌ Error: ${errorText}`)
+      }
+    } catch (error) {
+      console.log(`🚫 Failed: ${error}`)
+    }
+  }
+  
+  console.log('🔍 === API DEBUGGING END ===')
+}
+
 // ===== "By OveR" Signature =====
 const OverSignature = () => (
   <div className="fixed top-5 right-8 z-50 select-none pointer-events-none">
@@ -667,7 +702,7 @@ export default function Dashboard() {
   // ГЛАВНЫЙ USEEFFECT С ПОДДЕРЖКОЙ TIMEFRAME
   useEffect(() => {
     console.log(`🚀 INITIALIZING with LIVE blockchain data for ${selectedTimeframe}...`)
-    
+    debugDashboardAPI()
     const loadFreshData = async () => {
       const timestamp = Date.now()
       console.log('⏰ Loading with timestamp:', timestamp)
