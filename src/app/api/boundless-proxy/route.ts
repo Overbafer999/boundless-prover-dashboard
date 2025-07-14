@@ -123,16 +123,16 @@ export async function POST(request: NextRequest) {
       } as ProxyResponse, { status: 500 });
     }
     
-    const response: ProxyResponse = {
-      success: true,
-      data: {
-        ...data,
-        totalEarnings: typeof data.totalEarnings === 'bigint' ? Number(data.totalEarnings) : Number(data.totalEarnings || 0)
-      },
-      source,
-      timestamp: Date.now(),
-      timeframe
-    };
+   const response: ProxyResponse = {
+  success: true,
+  data: {
+    ...data,
+    totalEarnings: Number(data.totalEarnings)
+  } as any,
+  source,
+  timestamp: Date.now(),
+  timeframe
+};
     
     console.log(`✅ Данные получены через ${source} для ${timeframe}`);
     
