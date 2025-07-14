@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         ...data,
-        totalEarnings: Number(data.totalEarnings) // Convert BigInt для JSON
+        totalEarnings: typeof data.totalEarnings === 'bigint' ? Number(data.totalEarnings) : Number(data.totalEarnings || 0)
       },
       source,
       timestamp: Date.now(),
