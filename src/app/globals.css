@@ -1,39 +1,42 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Inter:wght@400;700;900&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+html {
+  font-family: 'Inter', 'Orbitron', Arial, sans-serif;
+  background: radial-gradient(ellipse 80% 60% at 50% 10%, #28233b 70%, #151226 100%);
+  min-height: 100%;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  color: #f1f2f6;
+  background: transparent;
 }
 
-.bg-bg-card {
-  @apply bg-gray-800/50;
+/* Дополнительные анимации */
+@keyframes gradient-x {
+  0%, 100% { 
+    background-position: 0% 50%; 
+  }
+  50% { 
+    background-position: 100% 50%; 
+  }
 }
 
-.text-text-dim {
-  @apply text-gray-400;
+@keyframes neon-pulse {
+  0%, 100% { 
+    filter: drop-shadow(0 0 10px #8b5cf6) drop-shadow(0 0 20px #6366f1);
+  }
+  50% { 
+    filter: drop-shadow(0 0 20px #8b5cf6) drop-shadow(0 0 30px #6366f1);
+  }
 }
 
-.shadow-glow {
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+.animate-gradient-x {
+  animation: gradient-x 3s ease-in-out infinite;
+}
+
+.animate-neon-pulse {
+  animation: neon-pulse 2s ease-in-out infinite;
 }

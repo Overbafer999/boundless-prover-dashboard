@@ -11,17 +11,26 @@ interface ProverLeaderboardProps {
 export default function ProverLeaderboard({ provers }: ProverLeaderboardProps) {
   const [sortBy, setSortBy] = useState<'earnings' | 'uptime' | 'status' | 'hashRate'>('earnings');
 
+  const safe = (n: number | undefined) => (typeof n === 'number' ? n : 0);
+
   const sortedProvers = [...provers].sort((a, b) => {
     switch (sortBy) {
       case 'earnings':
-        return b.earnings - a.earnings;
+        return safe(b.earnings) - safe(a.earnings);
       case 'uptime':
-        return b.uptime - a.uptime;
+        return safe(b.uptime) - safe(a.uptime);
       case 'hashRate':
-        return b.hashRate - a.hashRate;
-      case 'status':
-        const statusOrder = { 'busy': 3, 'online': 2, 'offline': 1 };
+        return safe(b.hashRate) - safe(a.hashRate);
+      case 'status': {
+        // Теперь тут учтён и maintenance, всё типизировано
+        const statusOrder: Record<string, number> = {
+          'busy': 4,
+          'online': 3,
+          'maintenance': 2,
+          'offline': 1,
+        };
         return (statusOrder[b.status] || 0) - (statusOrder[a.status] || 0);
+      }
       default:
         return 0;
     }
