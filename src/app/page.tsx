@@ -510,6 +510,7 @@ export default function Dashboard() {
   
   // 🔥 ИСПРАВЛЕНО: Временные диапазоны с правильными типами
   const [selectedTimeframe, setSelectedTimeframe] = useState<'1d' | '3d' | '1w'>('1d')
+  const [proverTimeframe, setProverTimeframe] = useState<'1d' | '3d' | '1w'>('1d')
   
   // 🔥 ИСПРАВЛЕНО: состояние для dashboard статистики
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
@@ -672,7 +673,7 @@ export default function Dashboard() {
       params.append('q', searchQuery)
       params.append('blockchain', 'true')
       params.append('realdata', 'true')
-      params.append('timeframe', selectedTimeframe)
+      params.append('timeframe', proverTimeframe)
       params.append('limit', '10')
 
       const response = await fetch(`/api/provers?${params}`)
@@ -703,7 +704,7 @@ export default function Dashboard() {
     }, 500)
 
     return () => clearTimeout(timeoutId)
-  }, [searchTerm, selectedTimeframe])
+  }, [searchTerm, proverTimeframe])
 
   // 🚀 ИСПРАВЛЕНО: ГЛАВНЫЙ USEEFFECT С ПОДДЕРЖКОЙ TIMEFRAME
   useEffect(() => {
