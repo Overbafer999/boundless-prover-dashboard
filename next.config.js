@@ -1,16 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    appDir: true,
+    // убираем appDir - больше не нужен в Next.js 14
   },
   images: {
     unoptimized: true
   },
-  // Добавим для CSS
   swcMinify: true,
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   }
 }
-
 module.exports = nextConfig
