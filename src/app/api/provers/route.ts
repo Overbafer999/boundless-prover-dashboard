@@ -1298,5 +1298,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Экспорт для использования в других файлах
-export { blockchainCache, TIMEFRAME_BLOCKS };
