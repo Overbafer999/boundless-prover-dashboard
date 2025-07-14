@@ -1,4 +1,4 @@
-// src/app/page.tsx - ОБНОВЛЕННАЯ ВЕРСИЯ С ПРАВИЛЬНОЙ API ИНТЕГРАЦИЕЙ
+// src/app/page.tsx - ОБНОВЛЕННАЯ ВЕРСИЯ С PROVER TIMEFRAME
 'use client'
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -658,14 +658,14 @@ export default function Dashboard() {
     }
   }
 
-  // Search function for real-time address lookup
+  // 🆕 ОБНОВЛЕННАЯ функция поиска с proverTimeframe
   const performSearch = async (searchQuery: string) => {
     if (!searchQuery.trim()) {
       setSearchResults([])
       return
     }
 
-    console.log('🔍 Performing blockchain search for:', searchQuery)
+    console.log(`🔍 Performing blockchain search for: ${searchQuery} (timeframe: ${proverTimeframe})`)
     setIsSearching(true)
 
     try {
@@ -673,18 +673,18 @@ export default function Dashboard() {
       params.append('q', searchQuery)
       params.append('blockchain', 'true')
       params.append('realdata', 'true')
-      params.append('timeframe', proverTimeframe)
+      params.append('timeframe', proverTimeframe) // 🆕 Используем proverTimeframe
       params.append('limit', '10')
 
       const response = await fetch(`/api/provers?${params}`)
       const result = await response.json()
       
-      console.log('🔍 Live search result:', result)
+      console.log(`🔍 Live search result for ${proverTimeframe}:`, result)
 
       if (result.success || result.data) {
         const foundProvers = Array.isArray(result.data) ? result.data : []
         setSearchResults(foundProvers)
-        console.log('✅ Found', foundProvers.length, 'live provers via blockchain')
+        console.log(`✅ Found ${foundProvers.length} live provers via blockchain for ${proverTimeframe}`)
       }
     } catch (error) {
       console.error('❌ Live search failed:', error instanceof Error ? error.message : 'Unknown search error')
@@ -693,7 +693,7 @@ export default function Dashboard() {
     }
   }
 
-  // Debounced search effect
+  // 🆕 ОБНОВЛЕННЫЙ useEffect с зависимостью от proverTimeframe
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (searchTerm) {
@@ -704,7 +704,7 @@ export default function Dashboard() {
     }, 500)
 
     return () => clearTimeout(timeoutId)
-  }, [searchTerm, proverTimeframe])
+  }, [searchTerm, proverTimeframe]) // 🆕 Добавлена зависимость от proverTimeframe
 
   // 🚀 ИСПРАВЛЕНО: ГЛАВНЫЙ USEEFFECT С ПОДДЕРЖКОЙ TIMEFRAME
   useEffect(() => {
@@ -1022,6 +1022,32 @@ export default function Dashboard() {
                 )}
               </motion.div>
 
+              {/* 🆕 Prover Analysis Timeframe */}
+              <div className="flex items-center gap-2 p-2 bg-boundless-card/20 backdrop-blur-sm rounded-lg border border-boundless-accent/10">
+                <span className="text-sm text-gray-400 px-2">Analyze prover for:</span>
+                
+                {(['1d', '3d', '1w'] as const).map((timeframe) => {
+                  const labels = { '1d': '1 Day', '3d': '3 Days', '1w': '7 Days' };
+                  const isSelected = proverTimeframe === timeframe;
+                  
+                  return (
+                    <motion.button
+                      key={timeframe}
+                      onClick={() => setProverTimeframe(timeframe)}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                        isSelected
+                          ? 'bg-boundless-accent text-white shadow-lg shadow-boundless-accent/25'
+                          : 'text-gray-400 hover:text-white hover:bg-boundless-accent/20'
+                      }`}
+                    >
+                      {labels[timeframe]}
+                    </motion.button>
+                  );
+                })}
+              </div>
+
               {/* Search Info */}
               {searchTerm && (
                 <motion.div 
@@ -1032,7 +1058,7 @@ export default function Dashboard() {
                   <Search className="w-4 h-4" />
                   {searchResults.length > 0 ? (
                     <span className="text-green-400">
-                      Found {searchResults.length} live result{searchResults.length !== 1 ? 's' : ''} for "{searchTerm}"
+                      Found {searchResults.length} live result{searchResults.length !== 1 ? 's' : ''} for "{searchTerm}" ({proverTimeframe})
                       {searchResults.some(p => p.source === 'direct_address_lookup') && (
                         <span className="ml-2 px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">
                           LIVE BLOCKCHAIN DATA
@@ -1040,10 +1066,10 @@ export default function Dashboard() {
                       )}
                     </span>
                   ) : isSearching ? (
-                    <span>Searching live blockchain for "{searchTerm}"...</span>
+                    <span>Searching live blockchain for "{searchTerm}" ({proverTimeframe})...</span>
                   ) : (
                     <span className="text-yellow-400">
-                      No live results found for "{searchTerm}". Try entering a valid Ethereum address (0x...)
+                      No live results found for "{searchTerm}" ({proverTimeframe}). Try entering a valid Ethereum address (0x...)
                     </span>
                   )}
                 </motion.div>
@@ -1064,7 +1090,7 @@ export default function Dashboard() {
                       animate={{ opacity: 1 }}
                     >
                       <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg mb-2">No live provers found for "{searchTerm}"</p>
+                      <p className="text-lg mb-2">No live provers found for "{searchTerm}" ({proverTimeframe})</p>
                       <p className="text-sm mb-4">Try searching by:</p>
                       <ul className="text-sm space-y-1">
                         <li>• <strong>Ethereum address:</strong> 0x1234... (gets real-time blockchain data)</li>
@@ -1139,6 +1165,10 @@ export default function Dashboard() {
           {dashboardStats.successRate && (
             <span className="ml-2">• Success rate: {dashboardStats.successRate.toFixed(1)}%</span>
           )}
+        </p>
+        <p className="text-xs text-purple-400 mt-1">
+          🔍 Search timeframe: {proverTimeframe === '1d' ? '1 Day' : proverTimeframe === '3d' ? '3 Days' : '1 Week'} 
+          • Dashboard timeframe: {selectedTimeframe === '1d' ? '1 Day' : selectedTimeframe === '3d' ? '3 Days' : '1 Week'}
         </p>
       </motion.div>
     </div>
