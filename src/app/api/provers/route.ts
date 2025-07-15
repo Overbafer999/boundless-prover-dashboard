@@ -1333,3 +1333,5 @@ export async function GET(request: NextRequest) {
       timeframe,
       timestamp: Date.now()
     });
+  }
+}
