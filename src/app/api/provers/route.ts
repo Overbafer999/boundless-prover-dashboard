@@ -304,6 +304,8 @@ async function parseProverPage(address: string, timeframe: string = '1d') {
         htmlPreview: html.substring(0, 500),
         htmlChecks: htmlChecks,
         testPatterns: testPatterns,
+        fetchedUrl: proverPageUrl,  // 🔥 ДОБАВЛЯЕМ URL ДЛЯ ПРОВЕРКИ
+        responseStatus: response.status,  // 🔥 ДОБАВЛЯЕМ СТАТУС
         debugExtraction: {
           ordersFound: html.match(/Orders\s+taken[\s\S]*?(\d{1,4}(?:,\d{3})*)/gi),
           earningsFound: html.match(/Order\s+earnings[\s\S]*?([\d.]+)\s*ETH/gi),
