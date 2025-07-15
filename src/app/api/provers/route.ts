@@ -137,15 +137,16 @@ function extractValue(html: string, patterns: string[], defaultValue: number = 0
 // 🔥 НОВАЯ ФУНКЦИЯ: ПАРСИНГ СТРАНИЦЫ КОНКРЕТНОГО ПРОВЕРА
 // 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ: ПАРСИНГ СТРАНИЦЫ КОНКРЕТНОГО ПРОВЕРА
 // 🔥 ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ФУНКЦИЯ ПАРСИНГА ПРОВЕРА
+ // 🔥 ПАРСЕР С ДЕТАЛЬНЫМИ ЛОГАМИ ДЛЯ ОТЛАДКИ
 async function parseProverPage(address: string, timeframe: string = '1d') {
   try {
-    console.log(`🔍 Парсим страницу конкретного провера: ${address} для ${timeframe}...`);
+    console.log(`🔍 [DEBUG] parseProverPage started for ${address} (${timeframe})`);
     
     // Проверяем кеш
     const cacheKey = `${address}_${timeframe}`;
     if (blockchainCache.proverPages[cacheKey] &&
         (Date.now() - blockchainCache.proverPages[cacheKey].timestamp) < PROVER_PAGE_CACHE_DURATION) {
-      console.log(`📦 Возвращаем кешированные данные провера ${address}`);
+      console.log(`📦 [DEBUG] Returning cached data for ${address}`);
       return blockchainCache.proverPages[cacheKey].data;
     }
     
@@ -153,7 +154,7 @@ async function parseProverPage(address: string, timeframe: string = '1d') {
     const timeframeParam = timeframe === '1d' ? '1d' : timeframe === '3d' ? '3d' : '7d';
     const proverPageUrl = `https://explorer.beboundless.xyz/provers/${address}?proving-activity-time-range=${timeframeParam}`;
     
-    console.log(`📍 Fetching URL: ${proverPageUrl}`);
+    console.log(`📍 [DEBUG] Fetching URL: ${proverPageUrl}`);
     
     const response = await fetch(proverPageUrl, {
       headers: {
@@ -167,19 +168,45 @@ async function parseProverPage(address: string, timeframe: string = '1d') {
       cache: 'no-cache'
     });
     
+    console.log(`📡 [DEBUG] Response status: ${response.status}`);
+    console.log(`📡 [DEBUG] Response ok: ${response.ok}`);
+    
     if (!response.ok) {
-      console.log(`❌ Прямой доступ к странице провера недоступен: ${response.status}`);
+      console.log(`❌ [DEBUG] Response not ok: ${response.status} ${response.statusText}`);
       return null;
     }
     
     const html = await response.text();
-    console.log(`📄 Получили HTML страницы провера (${html.length} символов)`);
+    console.log(`📄 [DEBUG] HTML received, length: ${html.length}`);
+    console.log(`📄 [DEBUG] HTML preview: ${html.substring(0, 200)}...`);
     
-    // 🔥 УЛУЧШЕННЫЙ ПАРСИНГ ДАННЫХ
+    // Проверяем содержимое HTML
+    const htmlChecks = {
+      hasOrdersTaken: html.includes('Orders taken'),
+      hasOrderEarnings: html.includes('Order earnings'),
+      hasPeakMHz: html.includes('Peak MHz'),
+      hasSuccessRate: html.includes('success rate'),
+      hasNumbers: html.match(/\d+/g)?.length || 0
+    };
+    console.log(`🔍 [DEBUG] HTML content checks:`, htmlChecks);
+    
+    // Тестируем regex паттерны
+    const testPatterns = {
+      ordersPattern1: html.match(/Orders\s+taken[\s\S]*?(\d{1,4}(?:,\d{3})*)/i),
+      ordersPattern2: html.match(/orders?[\s\S]*?(\d{2,4})/i),
+      earningsPattern1: html.match(/Order\s+earnings[\s\S]*?([\d.]+)\s*ETH/i),
+      earningsPattern2: html.match(/([\d.]+)\s*ETH/gi),
+      mhzPattern1: html.match(/Peak\s+MHz[\s\S]*?([\d.]+)/i),
+      mhzPattern2: html.match(/([\d.]+)\s*MHz/gi),
+      successPattern1: html.match(/success\s+rate[\s\S]*?([\d.]+)%/i),
+      successPattern2: html.match(/([\d.]+)%/gi)
+    };
+    console.log(`🔍 [DEBUG] Pattern test results:`, testPatterns);
+    
+    // Улучшенный парсинг данных
     const extractRealData = (html: string) => {
-      console.log('🔍 Начинаем парсинг HTML...');
+      console.log('🔍 [DEBUG] Starting data extraction...');
       
-      // Множественные паттерны для каждого значения
       const findValue = (patterns: string[], type: string) => {
         for (let i = 0; i < patterns.length; i++) {
           const pattern = patterns[i];
@@ -187,93 +214,105 @@ async function parseProverPage(address: string, timeframe: string = '1d') {
           const matches = html.match(regex);
           
           if (matches && matches.length > 0) {
-            console.log(`✅ ${type} - найдено совпадение ${i + 1}: "${matches[0]}"`);
+            console.log(`✅ [DEBUG] ${type} - pattern ${i + 1} found: "${matches[0]}"`);
             
-            // Извлекаем число из совпадения
             const numberMatch = matches[0].match(/([\d,]+(?:\.[\d]+)?)/);
             if (numberMatch) {
               const value = parseFloat(numberMatch[1].replace(/,/g, ''));
-              console.log(`📊 ${type} извлеченное значение: ${value}`);
+              console.log(`📊 [DEBUG] ${type} extracted value: ${value}`);
               return value;
             }
           }
         }
-        console.log(`❌ ${type} - не найдено`);
+        console.log(`❌ [DEBUG] ${type} - no patterns matched`);
         return 0;
       };
       
-      // Orders taken: поиск числа типа "950"
+      // Orders taken
       const ordersTaken = findValue([
         'Orders\\s+taken[\\s\\S]*?(\\d{1,4}(?:,\\d{3})*)',
         'orders?[\\s\\S]*?(\\d{2,4})',
-        '(\\d{3,4})(?=\\s|<|\$|,)',
+        '(\\d{3,4})(?=\\s|<|\\$|,)',
       ], 'Orders Taken');
       
-      // Order earnings: поиск "0.0001615 ETH"
+      // Order earnings
       const orderEarnings = findValue([
         'Order\\s+earnings[\\s\\S]*?([\\d.]+)\\s*ETH',
         'earnings[\\s\\S]*?([\\d.]+)\\s*ETH', 
         '([\\d.]+)\\s*ETH',
       ], 'Order Earnings');
       
-      // Peak MHz: поиск "3.631180 MHz"
+      // Peak MHz
       const peakMHz = findValue([
         'Peak\\s+MHz\\s+reached[\\s\\S]*?([\\d.]+)\\s*MHz',
         'MHz\\s+reached[\\s\\S]*?([\\d.]+)',
         '([\\d.]+)\\s*MHz',
       ], 'Peak MHz');
       
-      // Success rate: поиск "96.6%"
+      // Success rate
       const successRate = findValue([
         'Fulfillment\\s+success\\s+rate[\\s\\S]*?([\\d.]+)%',
         'success\\s+rate[\\s\\S]*?([\\d.]+)%',
         '([\\d.]+)%',
       ], 'Success Rate');
       
-      console.log(`📊 Финальные извлеченные данные:`, {
-        ordersTaken,
-        orderEarnings, 
-        peakMHz,
-        successRate
-      });
-      
-      return {
+      const results = {
         ordersTaken,
         orderEarnings,
         peakMHz,
         successRate
       };
+      
+      console.log(`📊 [DEBUG] Final extracted data:`, results);
+      return results;
     };
     
     const rawData = extractRealData(html);
     
-    // Проверяем что данные найдены
+    // Проверяем результаты
+    console.log(`🔍 [DEBUG] Extraction results:`, rawData);
+    
     if (rawData.ordersTaken === 0 && rawData.orderEarnings === 0 && rawData.peakMHz === 0) {
-      console.log(`❌ Не удалось извлечь данные из HTML для ${address}`);
-      console.log(`🔍 HTML sample:`, html.substring(0, 1000));
-      return null;
+      console.log(`❌ [DEBUG] No valid data extracted for ${address}`);
+      console.log(`📄 [DEBUG] Saving HTML sample for analysis...`);
+      
+      // Возвращаем дебаг-данные вместо null
+      return {
+        orders: "0",
+        earnings: "0.00000000",
+        hashRate: "0.000000",
+        uptime: "0.0",
+        rawData: {
+          totalOrdersTaken: 0,
+          totalOrderEarnings: 0,
+          peakMHz: 0,
+          successRate: 0,
+          earningsUsd: 0,
+          timeframe,
+          source: 'parsing_failed_debug',
+          htmlLength: html.length,
+          htmlPreview: html.substring(0, 500),
+          patterns: testPatterns,
+          debugInfo: htmlChecks
+        }
+      };
     }
     
-    // 🔥 ПРАВИЛЬНАЯ ЛОГИКА: ПОКАЗЫВАЕМ РЕАЛЬНЫЕ ДАННЫЕ БЕЗ ИЗМЕНЕНИЙ!
-    const ethToUsd = 3200; // Примерная цена ETH
-    const earningsUsd = rawData.orderEarnings * ethToUsd;
+    console.log(`✅ [DEBUG] Successfully extracted data for ${address}`);
     
     const result = {
-      // ✅ ПОКАЗЫВАЕМ РЕАЛЬНЫЕ ДАННЫЕ (без множителей для основных показателей)
-      orders: rawData.ordersTaken.toString(), // 950 -> "950"
-      earnings: rawData.orderEarnings.toFixed(8), // 0.0001615 -> "0.00016150" 
-      hashRate: rawData.peakMHz.toFixed(6), // 3.631180 -> "3.631180"
-      uptime: rawData.successRate.toFixed(1), // 96.6 -> "96.6"
-      
-      // Дополнительные данные
+      orders: rawData.ordersTaken.toString(),
+      earnings: rawData.orderEarnings.toFixed(8),
+      hashRate: rawData.peakMHz.toFixed(6),
+      uptime: rawData.successRate.toFixed(1),
       rawData: {
         totalOrdersTaken: rawData.ordersTaken,
         totalOrderEarnings: rawData.orderEarnings,
         peakMHz: rawData.peakMHz,
         successRate: rawData.successRate,
-        earningsUsd: earningsUsd,
+        earningsUsd: rawData.orderEarnings * 3200,
         timeframe,
-        source: 'real_prover_page_parsing_fixed'
+        source: 'real_prover_page_parsing_debug_success'
       }
     };
     
@@ -283,12 +322,29 @@ async function parseProverPage(address: string, timeframe: string = '1d') {
       timestamp: Date.now()
     };
     
-    console.log(`✅ РЕАЛЬНЫЕ данные провера (без искажений):`, result);
+    console.log(`✅ [DEBUG] Final result for ${address}:`, result);
     return result;
     
   } catch (error) {
-    console.error(`❌ Ошибка парсинга страницы провера ${address}:`, error);
-    return null;
+    console.error(`❌ [DEBUG] parseProverPage error for ${address}:`, error);
+    
+    // Возвращаем дебаг-данные вместо null
+    return {
+      orders: "0",
+      earnings: "0.00000000", 
+      hashRate: "0.000000",
+      uptime: "0.0",
+      rawData: {
+        totalOrdersTaken: 0,
+        totalOrderEarnings: 0,
+        peakMHz: 0,
+        successRate: 0,
+        earningsUsd: 0,
+        timeframe,
+        source: 'parsing_error_debug',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    };
   }
 }
 
