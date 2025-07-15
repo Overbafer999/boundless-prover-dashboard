@@ -299,7 +299,7 @@ export class BoundlessApiClient {
           }
         }
       } catch (error) {
-        console.log(`❌ Страница ${page} недоступна:`, error.message);
+        console.log(`❌ Страница ${page} недоступна:`, error instanceof Error ? error.message : String(error));
         continue;
       }
     }
