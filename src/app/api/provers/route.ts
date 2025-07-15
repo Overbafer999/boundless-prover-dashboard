@@ -1,4 +1,4 @@
-// src/app/api/provers/route.ts
+// src/app/api/provers/route.ts - REAL BOUNDLESS EXPLORER PARSING
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createPublicClient, http, getContract, formatEther, parseAbiItem } from 'viem';
@@ -797,189 +797,6 @@ async function calculateAdvancedStats(address: string, realStats: any, stakeBala
   return stats;
 }
 
-// Обогащение blockchain данными
-async function enrichWithBlockchainDataOptimized(provers: any[], includeRealData = false, searchQuery = '', timeframe = '1d') {
-  let realProverStats = new Map()
-  
-  if (includeRealData) {
-    const { proverStats } = await parseBlockchainEventsOptimized(false, true, timeframe);
-    realProverStats = proverStats;
-  }
-  
-  const contract = getContract({
-    address: BOUNDLESS_CONTRACT_ADDRESS,
-    abi: BOUNDLESS_MARKET_ABI,
-    client: publicClient
-  })
-  
-  const enrichedProvers = await Promise.all(
-    provers.map(async (prover) => {
-      if (prover.blockchain_address) {
-        try {
-          const address = prover.blockchain_address.toLowerCase()
-          
-          const ethBalance = await contract.read.balanceOf([prover.blockchain_address as `0x${string}`])
-          const stakeBalance = await contract.read.balanceOfStake([prover.blockchain_address as `0x${string}`])
-          
-          const realStats = realProverStats.get(address)
-          const advancedStats = await calculateAdvancedStats(address, realStats, stakeBalance);
-          
-          return {
-            ...prover,
-            blockchain_verified: true,
-            eth_balance: formatEther(ethBalance),
-            stake_balance: formatEther(stakeBalance),
-            is_active_onchain: Number(stakeBalance) > 0,
-            
-            total_orders: realStats?.total_orders || advancedStats.total_orders,
-            successful_orders: realStats?.successful_orders || advancedStats.successful_orders,
-            reputation_score: realStats ? parseFloat(realStats.reputation_score) : (advancedStats.total_orders > 0 ? parseFloat(((advancedStats.successful_orders / advancedStats.total_orders) * 5).toFixed(1)) : 0),
-            success_rate: realStats ? parseFloat(realStats.success_rate) : (advancedStats.total_orders > 0 ? parseFloat(((advancedStats.successful_orders / advancedStats.total_orders) * 100).toFixed(1)) : 0),
-            slashes: realStats?.slashes || 0,
-            onchain_activity: realStats ? true : Number(stakeBalance) > 0,
-            
-            uptime: advancedStats.uptime,
-            hashRate: advancedStats.hash_rate,
-            last_active: advancedStats.last_active,
-            earnings: advancedStats.earnings,
-            earnings_usd: advancedStats.earnings,
-            
-            status: Number(stakeBalance) > 0 ? 'online' : 'offline',
-            last_blockchain_check: new Date().toISOString()
-          }
-        } catch (error) {
-          console.error(`❌ Blockchain check failed for ${prover.id}:`, error)
-          return {
-            ...prover,
-            blockchain_verified: false,
-            blockchain_error: 'Unable to verify on chain'
-          }
-        }
-      }
-      
-      return prover
-    })
-  )
-  
-  // Добавляем новых проверов из blockchain
-  if (includeRealData && realProverStats.size > 0) {
-    console.log(`🔗 Adding ${Math.min(realProverStats.size, 5)} real blockchain provers`)
-    
-    const existingAddresses = new Set(
-      enrichedProvers
-        .filter(p => p.blockchain_address)
-        .map(p => p.blockchain_address.toLowerCase())
-    )
-    
-    const newAddresses = Array.from(realProverStats.entries()).slice(0, 5);
-    
-    const newProvers = await Promise.all(
-      newAddresses.map(async ([address, stats]) => {
-        if (!existingAddresses.has(address)) {
-          try {
-            const stakeBalance = await contract.read.balanceOfStake([address as `0x${string}`])
-            const ethBalance = await contract.read.balanceOf([address as `0x${string}`])
-            const advancedStats = await calculateAdvancedStats(address, stats, stakeBalance);
-            
-            return {
-              id: `blockchain-${address.slice(2, 8)}`,
-              nickname: `Prover_${address.slice(2, 8)}`,
-              blockchain_address: address,
-              blockchain_verified: true,
-              onchain_activity: true,
-              
-              eth_balance: formatEther(ethBalance),
-              stake_balance: formatEther(stakeBalance),
-              is_active_onchain: Number(stakeBalance) > 0,
-              
-              total_orders: stats.total_orders || advancedStats.total_orders,
-              successful_orders: stats.successful_orders || advancedStats.successful_orders,
-              reputation_score: parseFloat(stats.reputation_score) || (advancedStats.total_orders > 0 ? parseFloat(((advancedStats.successful_orders / advancedStats.total_orders) * 5).toFixed(1)) : 0),
-              success_rate: parseFloat(stats.success_rate) || (advancedStats.total_orders > 0 ? parseFloat(((advancedStats.successful_orders / advancedStats.total_orders) * 100).toFixed(1)) : 0),
-              slashes: stats.slashes || 0,
-              
-              uptime: advancedStats.uptime,
-              hashRate: advancedStats.hash_rate,
-              last_active: advancedStats.last_active,
-              earnings: advancedStats.earnings,
-              earnings_usd: advancedStats.earnings,
-              
-              gpu_model: 'Unknown GPU',
-              location: 'Unknown',
-              status: Number(stakeBalance) > 0 ? 'online' : 'offline',
-              last_seen: new Date().toISOString(),
-              source: 'blockchain_discovery'
-            }
-          } catch (error) {
-            console.error(`❌ Error calculating stats for ${address}:`, error);
-            return null;
-          }
-        }
-        return null;
-      })
-    );
-    
-    newProvers.filter(Boolean).forEach(prover => {
-      if (prover) enrichedProvers.push(prover);
-    });
-  }
-  
-  // Прямой поиск по адресу
-  if (searchQuery && searchQuery.match(/^0x[a-fA-F0-9]{40}$/)) {
-    console.log('🔍 Direct address search:', searchQuery)
-    
-    const address = searchQuery.toLowerCase()
-    
-    const alreadyExists = enrichedProvers.some(p => 
-      p.blockchain_address?.toLowerCase() === address
-    )
-    
-    if (!alreadyExists) {
-      try {
-        const ethBalance = await contract.read.balanceOf([searchQuery as `0x${string}`])
-        const stakeBalance = await contract.read.balanceOfStake([searchQuery as `0x${string}`])
-        
-        const realStats = realProverStats.get(address)
-        const advancedStats = await calculateAdvancedStats(address, realStats, stakeBalance);
-        
-        enrichedProvers.push({
-          id: `direct-${address.slice(2, 8)}`,
-          nickname: `Prover_${address.slice(2, 8)}`,
-          blockchain_address: address,
-          blockchain_verified: true,
-          
-          eth_balance: formatEther(ethBalance),
-          stake_balance: formatEther(stakeBalance),
-          is_active_onchain: Number(stakeBalance) > 0,
-          
-          total_orders: realStats?.total_orders || advancedStats.total_orders,
-          successful_orders: realStats?.successful_orders || advancedStats.successful_orders,
-          reputation_score: realStats ? parseFloat(realStats.reputation_score) : (advancedStats.total_orders > 0 ? (advancedStats.successful_orders / advancedStats.total_orders * 5) : 0),
-          slashes: realStats?.slashes || 0,
-          
-          uptime: advancedStats.uptime,
-          hashRate: advancedStats.hash_rate,
-          last_active: advancedStats.last_active,
-          earnings: advancedStats.earnings,
-          earnings_usd: advancedStats.earnings,
-          
-          status: Number(stakeBalance) > 0 ? 'online' : 'offline',
-          gpu_model: 'Unknown GPU',
-          location: 'Unknown',
-          last_seen: new Date().toISOString(),
-          source: 'direct_address_lookup'
-        })
-        
-        console.log('✅ Direct address found and added!')
-      } catch (error) {
-        console.error('❌ Direct address lookup failed:', error)
-      }
-    }
-  }
-  
-  return enrichedProvers
-}
-
 // Fallback проверы для поиска
 function searchFallbackProvers(query: string, filters: any = {}) {
   const fallbackProvers = [
@@ -1042,7 +859,6 @@ function searchFallbackProvers(query: string, filters: any = {}) {
   })
 }
 
-// 🚀 ГЛАВНАЯ GET ФУНКЦИЯ - ПОЛНОСТЬЮ ОБНОВЛЕННАЯ С РЕАЛЬНЫМИ ДАННЫМИ
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q') || '';
@@ -1059,7 +875,7 @@ export async function GET(request: NextRequest) {
   const forDashboard = searchParams.get('dashboard') === 'true';
   const useCache = searchParams.get('cache') !== 'false';
   
-  // 🔥 DASHBOARD СТАТИСТИКА С РЕАЛЬНЫМИ ДАННЫМИ
+  // Dashboard статистика с реальными данными
   if (forDashboard || searchParams.get('stats') === 'true') {
     try {
       console.log(`📊 Dashboard stats request for ${timeframe} with REAL parsing`);
@@ -1121,141 +937,20 @@ export async function GET(request: NextRequest) {
   try {
     console.log(`🚀 API Request: blockchain=${includeBlockchain}, realdata=${includeRealData}, timeframe=${timeframe}, query="${query}"`)
     
-    // ПРИОРИТЕТ: РЕАЛЬНЫЕ BLOCKCHAIN ДАННЫЕ С РЕАЛЬНЫМИ BOUNDLESS ДАННЫМИ
-    if (includeBlockchain && includeRealData) {
-      console.log(`🔥 PRIORITY: Getting LIVE blockchain + REAL Boundless data for ${timeframe}!`)
-      
-      try {
-        // 1. Получаем РЕАЛЬНЫЕ Boundless данные
-        const boundlessData = await fetchRealBoundlessData(timeframe);
-        
-        // 2. Получаем LIVE blockchain данные
-        const { proverStats, globalStats } = await parseBlockchainEventsOptimized(false, true, timeframe);
-        
-        const contract = getContract({
-          address: BOUNDLESS_CONTRACT_ADDRESS,
-          abi: BOUNDLESS_MARKET_ABI,
-          client: publicClient
-        })
-        
-        let liveProvers = [];
-        
-        // 3. Обрабатываем найденные на blockchain адреса
-        const addresses = Array.from(proverStats.keys()).slice(0, 15);
-        
-        console.log(`🔗 Processing ${addresses.length} live blockchain provers with REAL data for ${timeframe}`)
-        
-        for (const addressKey of addresses) {
-          const address = addressKey as string;
-          try {
-            const stats = proverStats.get(address);
-            const ethBalance = await contract.read.balanceOf([address as `0x${string}`]);
-            const stakeBalance = await contract.read.balanceOfStake([address as `0x${string}`]);
-            const advancedStats = await calculateAdvancedStats(address, stats, stakeBalance);
-            
-            const liveProver = {
-              id: `live-${address.slice(2, 8)}`,
-              nickname: `LiveProver_${address.slice(2, 8)}`,
-              blockchain_address: address,
-              blockchain_verified: true,
-              onchain_activity: true,
-              
-              // LIVE Blockchain балансы
-              eth_balance: formatEther(ethBalance),
-              stake_balance: formatEther(stakeBalance),
-              is_active_onchain: Number(stakeBalance) > 0,
-              
-              // LIVE статистика из blockchain
-              total_orders: stats.total_orders || advancedStats.total_orders,
-              successful_orders: stats.successful_orders || advancedStats.successful_orders,
-              reputation_score: parseFloat(stats.reputation_score) || (advancedStats.total_orders > 0 ? (advancedStats.successful_orders / advancedStats.total_orders * 5) : 0),
-              success_rate: parseFloat(stats.success_rate) || (advancedStats.total_orders > 0 ? (advancedStats.successful_orders / advancedStats.total_orders * 100) : 0),
-              slashes: stats.slashes || 0,
-              
-              // Расширенная статистика
-              uptime: advancedStats.uptime,
-              hashRate: advancedStats.hash_rate,
-              earnings: advancedStats.earnings,
-              earnings_usd: advancedStats.earnings,
-              
-              // Дополнительные поля
-              gpu_model: `GPU_${address.slice(2, 6).toUpperCase()}`,
-              location: `Region_${address.slice(6, 8).toUpperCase()}`,
-              status: Number(stakeBalance) > 0 ? 'online' : 'offline',
-              last_seen: new Date().toISOString(),
-              last_active: advancedStats.last_active,
-              source: `live_blockchain+real_boundless_${timeframe}`
-            };
-            
-            liveProvers.push(liveProver);
-            
-          } catch (error) {
-            console.error(`❌ Error processing live prover ${address}:`, error);
-          }
-        }
-        
-        // 4. Прямой поиск по адресу (если введен)
-        if (query && query.match(/^0x[a-fA-F0-9]{40}$/)) {
-          console.log('🔍 Direct live address search:', query);
-          
-          const searchAddress = query.toLowerCase();
-          const alreadyExists = liveProvers.some(p => p.blockchain_address === searchAddress);
-          
-          if (!alreadyExists) {
-            try {
-              const ethBalance = await contract.read.balanceOf([query as `0x${string}`]);
-              const stakeBalance = await contract.read.balanceOfStake([query as `0x${string}`]);
-              const realStats = proverStats.get(searchAddress);
-              const advancedStats = await calculateAdvancedStats(searchAddress, realStats, stakeBalance);
-              
-              const directProver = {
-                id: `direct-${searchAddress.slice(2, 8)}`,
-                nickname: `DirectLookup_${searchAddress.slice(2, 8)}`,
-                blockchain_address: searchAddress,
-                blockchain_verified: true,
-                
-                // LIVE данные
-                eth_balance: formatEther(ethBalance),
-                stake_balance: formatEther(stakeBalance),
-                is_active_onchain: Number(stakeBalance) > 0,
-                
-                // Статистика
-                total_orders: realStats?.total_orders || advancedStats.total_orders,
-                successful_orders: realStats?.successful_orders || advancedStats.successful_orders,
-                reputation_score: realStats ? parseFloat(realStats.reputation_score) : (advancedStats.total_orders > 0 ? (advancedStats.successful_orders / advancedStats.total_orders * 5) : 0),
-                uptime: advancedStats.uptime,
-                hashRate: advancedStats.hash_rate,
-                earnings: advancedStats.earnings,
-                earnings_usd: advancedStats.earnings,
-                
-                gpu_model: 'Live_GPU',
-                location: 'Live_Location',
-                status: Number(stakeBalance) > 0 ? 'online' : 'offline',
-                last_seen: new Date().toISOString(),
-                source: `direct_live_lookup+real_boundless_${timeframe}`
-              };
-              
-              liveProvers.unshift(directProver);
-              console.log('✅ Direct live address found and added!');
-              
-            } catch (error) {
-              console.error('❌ Direct live address lookup failed:', error);
-            }
-          }
-        }
-        
-        // 5. Фильтрация по запросу (если не адрес)
-        if (query && !query.match(/^0x[a-fA-F0-9]{40}$/)) {
-          liveProvers = liveProvers.filter(prover => 
-            prover.nickname.toLowerCase().includes(query.toLowerCase()) ||
-            prover.blockchain_address.toLowerCase().includes(query.toLowerCase()) ||
-            prover.gpu_model.toLowerCase().includes(query.toLowerCase()) ||
-            prover.location.toLowerCase().includes(query.toLowerCase())
-          );
-        }
-        
-        // 6. Фильтрация по статусу
-        if (status !== 'all') {
+    // Fallback: Supabase данные
+    console.log(`📦 Using Supabase data for ${timeframe}...`);
+    
+    let queryBuilder = supabase
+      .from('provers')
+      .select('*', { count: 'exact' });
+
+    if (query) {
+      queryBuilder = queryBuilder.or(
+        `nickname.ilike.%${query}%,id.ilike.%${query}%,gpu_model.ilike.%${query}%,location.ilike.%${query}%,blockchain_address.ilike.%${query}%`
+      );
+    }
+
+    if (status !== 'all') {
       queryBuilder = queryBuilder.eq('status', status);
     }
 
@@ -1279,15 +974,6 @@ export async function GET(request: NextRequest) {
 
     let finalData = data || [];
 
-    // Обогащаем blockchain данными (если запрошено) с timeframe
-    if (includeBlockchain) {
-      try {
-        finalData = await enrichWithBlockchainDataOptimized(finalData, includeRealData, query, timeframe);
-      } catch (blockchainError) {
-        console.error('❌ Blockchain enrichment failed:', blockchainError);
-      }
-    }
-
     return NextResponse.json({
       success: true,
       data: finalData,
@@ -1297,17 +983,11 @@ export async function GET(request: NextRequest) {
         total: count || 0,
         totalPages: Math.ceil((count || 0) / limit),
       },
-      source: includeBlockchain ? 
-        (includeRealData ? `supabase_fallback+blockchain_optimized+realdata_${timeframe}` : `supabase_fallback+blockchain_optimized_${timeframe}`) : 
-        'supabase_fallback',
+      source: 'supabase_fallback',
       blockchain_enabled: includeBlockchain,
       real_data_enabled: includeRealData,
       timeframe,
-      timestamp: Date.now(),
-      cache_info: {
-        dashboard_cache_age: blockchainCache.lastUpdate ? Date.now() - blockchainCache.lastUpdate : null,
-        cache_available: !!blockchainCache.dashboardStats
-      }
+      timestamp: Date.now()
     });
 
   } catch (error) {
@@ -1315,16 +995,7 @@ export async function GET(request: NextRequest) {
     
     // Последний fallback на статические данные с timeframe
     const fallbackResults = searchFallbackProvers(query, { status, gpu, location });
-    let finalData = fallbackResults.slice(offset, offset + limit);
-
-    if (includeBlockchain) {
-      try {
-        finalData = await enrichWithBlockchainDataOptimized(finalData, includeRealData, query, timeframe);
-      } catch (blockchainError) {
-        console.error('❌ Final blockchain enrichment failed:', blockchainError);
-      }
-    }
-
+    const finalData = fallbackResults.slice(offset, offset + limit);
     const total = fallbackResults.length;
 
     return NextResponse.json({
@@ -1344,24 +1015,8 @@ export async function GET(request: NextRequest) {
       timestamp: Date.now()
     });
   }
-
-// Функция для очистки кеша
-export async function DELETE() {
-  Object.keys(blockchainCache.dashboardStats).forEach(key => {
-    delete blockchainCache.dashboardStats[key];
-  });
-  
-  blockchainCache.lastUpdate = 0;
-  blockchainCache.data = null;
-  
-  return NextResponse.json({ 
-    success: true, 
-    message: 'Cache cleared',
-    timestamp: Date.now()
-  });
 }
 
-// POST функция для регистрации новых проверов
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -1438,52 +1093,18 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-          liveProvers = liveProvers.filter(prover => prover.status === status);
-        }
-        
-        // 7. Пагинация
-        const total = liveProvers.length;
-        const paginatedLiveProvers = liveProvers.slice(offset, offset + limit);
-        
-        console.log(`✅ Returning ${paginatedLiveProvers.length} LIVE blockchain + REAL Boundless provers (total: ${total}) for ${timeframe}`);
-        
-        return NextResponse.json({
-          success: true,
-          data: paginatedLiveProvers,
-          pagination: {
-            page,
-            limit,
-            total,
-            totalPages: Math.ceil(total / limit),
-          },
-          source: `live_blockchain+real_boundless_priority_${timeframe}`,
-          blockchain_enabled: true,
-          real_data_enabled: true,
-          boundless_data_available: !!boundlessData,
-          timeframe,
-          timestamp: Date.now(),
-          cache_info: {
-            dashboard_cache_age: blockchainCache.lastUpdate ? Date.now() - blockchainCache.lastUpdate : null,
-            cache_available: !!blockchainCache.dashboardStats
-          }
-        });
-        
-      } catch (blockchainError) {
-        console.error(`❌ LIVE blockchain + REAL Boundless data failed for ${timeframe}, falling back to Supabase:`, blockchainError);
-      }
-    }
-    
-    // Fallback: Supabase данные
-    console.log(`📦 Fallback: Using Supabase data for ${timeframe}...`);
-    
-    let queryBuilder = supabase
-      .from('provers')
-      .select('*', { count: 'exact' });
 
-    if (query) {
-      queryBuilder = queryBuilder.or(
-        `nickname.ilike.%${query}%,id.ilike.%${query}%,gpu_model.ilike.%${query}%,location.ilike.%${query}%,blockchain_address.ilike.%${query}%`
-      );
-    }
-
-    if (status !== 'all') {
+export async function DELETE() {
+  Object.keys(blockchainCache.dashboardStats).forEach(key => {
+    delete blockchainCache.dashboardStats[key];
+  });
+  
+  blockchainCache.lastUpdate = 0;
+  blockchainCache.data = null;
+  
+  return NextResponse.json({ 
+    success: true, 
+    message: 'Cache cleared',
+    timestamp: Date.now()
+  });
+}
