@@ -324,9 +324,7 @@ async function parseProverPage(address: string, timeframe: string) {
     };
   }
 }
-}
 
-// 🔥 РЕАЛЬНЫЙ ПАРСЕР EXPLORER.BEBOUNDLESS.XYZ
 async function parseRealBoundlessExplorer(timeframe: string) {
   try {
     console.log(`🔍 Парсим реальные данные с explorer.beboundless.xyz для ${timeframe}...`);
