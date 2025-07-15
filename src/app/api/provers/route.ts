@@ -218,34 +218,65 @@ async function parseProverPage(address: string, timeframe: string = '1d') {
       ]
     };
     
-    // Извлекаем данные
-    const ordersTaken = extractValue(html, patterns.ordersTaken, 0);
-    const orderEarnings = extractValue(html, patterns.orderEarnings, 0); // в ETH
-    const peakMHz = extractValue(html, patterns.peakMHz, 0);
-    const successRate = extractValue(html, patterns.successRate, 0);
+    // Извлекаем данные из таблицы заказов
+    const extractTableData = (html: string) => {
+      let totalOrders = 0;
+      let totalEarnings = 0; // в ETH
+      let totalMHz = 0;
+      let successfulOrders = 0;
+      
+      // Находим все строки с MHz и ETH данными
+      const orderRows = html.match(/[\d.]+M?\s*\|\s*[\d.]+\s*MHz\s*\|\s*[\d.]+\s*ETH/g) || [];
+      
+      orderRows.forEach(row => {
+        totalOrders++;
+        
+        // Извлекаем MHz
+        const mhzMatch = row.match(/([\d.]+)\s*MHz/);
+        if (mhzMatch) {
+          const mhz = parseFloat(mhzMatch[1]);
+          if (mhz > 0) {
+            totalMHz += mhz;
+            successfulOrders++;
+          }
+        }
+        
+        // Извлекаем ETH
+        const ethMatch = row.match(/([\d.]+)\s*ETH/);
+        if (ethMatch) {
+          const eth = parseFloat(ethMatch[1]);
+          totalEarnings += eth;
+        }
+      });
+      
+      return {
+        totalOrders,
+        totalEarnings, // в ETH
+        totalMHz,
+        successfulOrders,
+        successRate: totalOrders > 0 ? (successfulOrders / totalOrders) * 100 : 0
+      };
+    };
     
-    console.log(`📊 Извлечены сырые данные провера:`, {
-      ordersTaken,
-      orderEarnings,
-      peakMHz,
-      successRate
-    });
+    const tableData = extractTableData(html);
+    
+    console.log(`📊 Извлечены данные из таблицы провера:`, tableData);
     
     // Конвертируем ETH в USD (примерная цена)
     const ethToUsd = 3200;
-    const earningsUsd = orderEarnings * ethToUsd;
+    const earningsUsd = tableData.totalEarnings * ethToUsd;
     
     // Применяем timeframe коэффициенты
     const result = {
-      orders: Math.max(0, Math.round(ordersTaken * multiplier)),
+      orders: Math.max(0, Math.round(tableData.totalOrders * multiplier)),
       earnings: Math.max(0, earningsUsd * multiplier).toFixed(2),
-      hashRate: Math.max(0, peakMHz).toFixed(1), // MHz остается постоянным
-      uptime: Math.max(0, Math.min(100, successRate)).toFixed(1), // Success rate остается постоянным, но не больше 100%
+      hashRate: Math.max(0, tableData.totalMHz).toFixed(1), // MHz остается постоянным
+      uptime: Math.max(0, Math.min(100, tableData.successRate)).toFixed(1), // Success rate остается постоянным, но не больше 100%
       rawData: {
-        ordersTaken,
-        orderEarnings,
-        peakMHz, 
-        successRate,
+        ordersTaken: tableData.totalOrders,
+        orderEarnings: tableData.totalEarnings,
+        peakMHz: tableData.totalMHz, 
+        successRate: tableData.successRate,
         earningsUsd,
         multiplier,
         timeframe
