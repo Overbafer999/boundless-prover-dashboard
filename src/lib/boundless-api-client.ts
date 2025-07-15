@@ -197,9 +197,9 @@ export class BoundlessApiClient {
       return result;
       
     } catch (error) {
-      console.error('❌ Ошибка парсинга HTML:', error);
-      return { parseSuccess: false, error: error.message };
-    }
+  console.error('❌ Ошибка парсинга HTML:', error);
+  return { parseSuccess: false, error: error instanceof Error ? error.message : 'Unknown error' };
+}
   }
 
   // 🔍 ПОПЫТКА ПАРСИНГА API ENDPOINTS
