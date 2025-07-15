@@ -146,14 +146,10 @@ async function parseExplorerDirect(timeframe: string): Promise<BoundlessStats | 
     
     // 🔍 ПАРСИНГ DASHBOARD ЭЛЕМЕНТОВ
     const parseDashboardElements = () => {
-      const dashboardData: {
-        cards: Array<{title: string; value: number; context: string}>;
-        stats: any[];
-        counters: any[];
-      } = {
-        cards: [],
-        stats: [],
-        counters: []
+      const dashboardData = {
+        cards: [] as any[],
+        stats: [] as any[],
+        counters: [] as any[]
       };
       
       // Ищем карточки статистики
