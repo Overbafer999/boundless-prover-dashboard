@@ -241,7 +241,7 @@ export class BoundlessApiClient {
             }
           }
         } catch (error) {
-          console.log(`❌ Endpoint ${endpoint} failed:`, error.message);
+          console.log(`❌ Endpoint ${endpoint} failed:`, error instanceof Error ? error.message : String(error));
           continue;
         }
       }
