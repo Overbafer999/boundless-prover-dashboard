@@ -764,9 +764,9 @@ export default function Dashboard() {
     
     // Автообновление каждые 30 секунд
     const interval = setInterval(() => {
-      console.log(`🔄 Auto-refreshing live blockchain data every 30 seconds for ${selectedTimeframe}...`)
-      loadDashboardStats(selectedTimeframe) // Обновляем только stats, не всех проверов
-    }, 30000)
+  console.log(`🔄 Auto-refreshing live blockchain data every 15 minutes for ${selectedTimeframe}...`)
+  loadDashboardStats(selectedTimeframe)
+}, 900000)
     
     return () => clearInterval(interval)
   }, [selectedTimeframe])
