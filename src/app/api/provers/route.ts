@@ -114,214 +114,213 @@ const CACHE_DURATION = 30000; // 30 секунд кеш для dashboard
 const SEARCH_CACHE_DURATION = 300000; // 5 минут кеш для поиска
 const PROVER_PAGE_CACHE_DURATION = 300000; // 5 минут кеш для страниц проверов
 
-// 🔧 HELPER FUNCTION: извлечение значений из HTML
-function extractValue(html: string, patterns: string[], defaultValue: number = 0): number {
-  for (const pattern of patterns) {
-    const regex = new RegExp(pattern, 'gi');
-    const matches = html.match(regex);
-    if (matches) {
-      for (const match of matches) {
-        const numberMatch = match.match(/([\d.]+)/);
-        if (numberMatch && numberMatch[1]) {
-          const value = parseFloat(numberMatch[1]);
-          if (!isNaN(value) && value > 0) {
-            return value;
-          }
-        }
-      }
-    }
-  }
-  return defaultValue;
-}
-
-// 🔧 HELPER FUNCTION: Анализ всех совпадений regex (ВЫНЕСЕНА НАРУЖУ)
-function extractAllMatches(patterns: RegExp[], html: string, dataType: string) {
-  const allMatches: string[] = [];
-  
-  for (const pattern of patterns) {
-    const matches = Array.from(html.matchAll(pattern));
-    if (matches.length > 0) {
-      console.log(`[DEBUG] ${dataType} - Pattern ${pattern.source} found ${matches.length} matches:`);
-      
-      matches.forEach((match, index) => {
-        const value = match[1] || match[0];
-        console.log(`  Match ${index + 1}: "${value}"`);
-        if (value && value.match(/\d/)) {
-          allMatches.push(value.replace(/[^\d.,]/g, ''));
-        }
-      });
-    }
-  }
-  
-  console.log(`[DEBUG] ${dataType} - All extracted values:`, allMatches);
-  return allMatches;
-}
-
-// 🔧 HELPER FUNCTION: Выбор лучшего значения (ВЫНЕСЕНА НАРУЖУ)
-function selectBestValue(matches: string[], dataType: string): string {
-  if (matches.length === 0) return '0';
-  
-  console.log(`[DEBUG] ${dataType} - Selecting best from:`, matches);
-  
-  // Убираем очевидно неправильные значения
-  const filtered = matches.filter(value => {
-    const num = parseFloat(value.replace(/,/g, ''));
-    
-    // Фильтруем по типу данных
-    switch (dataType) {
-      case 'ORDERS':
-        return num > 10 && num < 10000; // Реалистичное количество заказов
-      case 'EARNINGS':
-        return num > 0.0001 && num < 100; // Реалистичные earnings в ETH
-      case 'MHZ':
-        return num > 0.1 && num < 1000; // Реалистичный hash rate
-      case 'SUCCESS':
-        return num > 50 && num <= 100; // Реалистичный success rate
-      default:
-        return true;
-    }
-  });
-  
-  console.log(`[DEBUG] ${dataType} - After filtering:`, filtered);
-  
-  if (filtered.length === 0) return matches[0] || '0';
-  
-  // Возвращаем первое разумное значение
-  const result = filtered[0];
-  console.log(`[DEBUG] ${dataType} - Selected value: ${result}`);
-  return result;
-}
-
-// 🔥 ЧЕСТНАЯ ФУНКЦИЯ parseProverPage БЕЗ КОСТЫЛЕЙ
-async function parseProverPage(address: string, timeframe: string) {
+// 🔥 ПАРСЕР С ДЕТАЛЬНЫМИ ЛОГАМИ ДЛЯ ОТЛАДКИ
+async function parseProverPage(address: string, timeframe: string = '1d') {
   try {
-    // Маппинг timeframe для URL параметра
-    const timeframeMap: { [key: string]: string } = {
-      '1d': '1d',
-      '3d': '3d', 
-      '1w': '7d'
-    };
+    console.log(`🔍 [DEBUG] parseProverPage started for ${address} (${timeframe})`);
     
-    const urlTimeframe = timeframeMap[timeframe] || '7d';
-    const url = `https://explorer.beboundless.xyz/provers/${address}?proving-activity-time-range=${urlTimeframe}`;
+    // Проверяем кеш
+    const cacheKey = `${address}_${timeframe}`;
+    if (blockchainCache.proverPages[cacheKey] &&
+        (Date.now() - blockchainCache.proverPages[cacheKey].timestamp) < PROVER_PAGE_CACHE_DURATION) {
+      console.log(`📦 [DEBUG] Returning cached data for ${address}`);
+      return blockchainCache.proverPages[cacheKey].data;
+    }
     
-    console.log(`[DEBUG] Fetching URL: ${url}`);
+    // URL с правильным timeframe параметром
+    const timeframeParam = timeframe === '1d' ? '1d' : timeframe === '3d' ? '3d' : '7d';
+    const proverPageUrl = `https://explorer.beboundless.xyz/provers/${address}?proving-activity-time-range=${timeframeParam}`;
     
-    const response = await fetch(url);
-    console.log(`[DEBUG] Response status: ${response.status}`);
+    console.log(`📍 [DEBUG] Fetching URL: ${proverPageUrl}`);
+    
+    const response = await fetch(proverPageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+      },
+      cache: 'no-cache'
+    });
+    
+    console.log(`📡 [DEBUG] Response status: ${response.status}`);
+    console.log(`📡 [DEBUG] Response ok: ${response.ok}`);
     
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      console.log(`❌ [DEBUG] Response not ok: ${response.status} ${response.statusText}`);
+      return null;
     }
     
     const html = await response.text();
-    console.log(`[DEBUG] HTML length: ${html.length}`);
-    console.log(`[DEBUG] HTML preview:`, html.substring(0, 1000));
+    console.log(`📄 [DEBUG] HTML received, length: ${html.length}`);
+    console.log(`📄 [DEBUG] HTML preview: ${html.substring(0, 200)}...`);
     
-    // 🔍 ПРОДВИНУТЫЕ REGEX ПАТТЕРНЫ - ТОЛЬКО ЧЕСТНЫЙ ПАРСИНГ!
+    // Проверяем содержимое HTML
+    const htmlChecks = {
+      hasOrdersTaken: html.includes('Orders taken'),
+      hasOrderEarnings: html.includes('Order earnings'),
+      hasPeakMHz: html.includes('Peak MHz'),
+      hasSuccessRate: html.includes('success rate'),
+      hasNumbers: html.match(/\d+/g)?.length || 0
+    };
+    console.log(`🔍 [DEBUG] HTML content checks:`, htmlChecks);
     
-    // 1. Orders taken - ищем все возможные варианты названий
-    const ordersPatterns = [
-      /Orders\s+taken[:\s]*(\d{1,4}(?:,\d{3})*)/gi,
-      /Total\s+orders[:\s]*(\d{1,4}(?:,\d{3})*)/gi,
-      /Orders\s+completed[:\s]*(\d{1,4}(?:,\d{3})*)/gi,
-      /Orders[:\s]*(\d{1,4}(?:,\d{3})*)/gi,
-      // Поиск в контексте (до/после ключевых слов)
-      /order[^>]{0,50}?(\d{1,4}(?:,\d{3})*)/gi,
-      /(\d{1,4}(?:,\d{3})*)[^<]{0,50}?order/gi
-    ];
+    // Тестируем regex паттерны
+    const testPatterns = {
+      ordersPattern1: html.match(/Orders\s+taken[\s\S]*?(\d{1,4}(?:,\d{3})*)/i),
+      ordersPattern2: html.match(/orders?[\s\S]*?(\d{2,4})/i),
+      earningsPattern1: html.match(/Order\s+earnings[\s\S]*?([\d.]+)\s*ETH/i),
+      earningsPattern2: html.match(/([\d.]+)\s*ETH/gi),
+      mhzPattern1: html.match(/Peak\s+MHz[\s\S]*?([\d.]+)/i),
+      mhzPattern2: html.match(/([\d.]+)\s*MHz/gi),
+      successPattern1: html.match(/success\s+rate[\s\S]*?([\d.]+)%/i),
+      successPattern2: html.match(/([\d.]+)%/gi)
+    };
+    console.log(`🔍 [DEBUG] Pattern test results:`, testPatterns);
     
-    // 2. Earnings - ищем ETH значения в контексте earnings
-    const earningsPatterns = [
-      /Order\s+earnings[:\s]*(0\.\d+)\s*ETH/gi,
-      /Total\s+earnings[:\s]*(0\.\d+)\s*ETH/gi,
-      /Earnings[:\s]*(0\.\d+)\s*ETH/gi,
-      /earning[^>]{0,50}?(0\.\d+)/gi,
-      /(0\.\d+)[^<]{0,50}?earning/gi,
-      // Более широкий поиск ETH значений
-      /(0\.\d{4,})\s*ETH/gi,
-      /ETH[:\s]*(0\.\d+)/gi
-    ];
+    // Улучшенный парсинг данных
+    const extractRealData = (html: string) => {
+      console.log('🔍 [DEBUG] Starting data extraction...');
+      
+      const findValue = (patterns: string[], type: string) => {
+        for (let i = 0; i < patterns.length; i++) {
+          const pattern = patterns[i];
+          const regex = new RegExp(pattern, 'gi');
+          const matches = html.match(regex);
+          
+          if (matches && matches.length > 0) {
+            console.log(`✅ [DEBUG] ${type} - pattern ${i + 1} found: "${matches[0]}"`);
+            
+            const numberMatch = matches[0].match(/([\d,]+(?:\.[\d]+)?)/);
+            if (numberMatch) {
+              const value = parseFloat(numberMatch[1].replace(/,/g, ''));
+              console.log(`📊 [DEBUG] ${type} extracted value: ${value}`);
+              return value;
+            }
+          }
+        }
+        console.log(`❌ [DEBUG] ${type} - no patterns matched`);
+        return 0;
+      };
+      
+      // Orders taken
+      const ordersTaken = findValue([
+        'Orders\\s+taken[\\s\\S]*?(\\d{1,4}(?:,\\d{3})*)',
+        'orders?[\\s\\S]*?(\\d{2,4})',
+        '(\\d{3,4})(?=\\s|<|\\$|,)',
+      ], 'Orders Taken');
+      
+      // Order earnings
+      const orderEarnings = findValue([
+        'Order\\s+earnings[\\s\\S]*?([\\d.]+)\\s*ETH',
+        'earnings[\\s\\S]*?([\\d.]+)\\s*ETH', 
+        '([\\d.]+)\\s*ETH',
+      ], 'Order Earnings');
+      
+      // Peak MHz
+      const peakMHz = findValue([
+        'Peak\\s+MHz\\s+reached[\\s\\S]*?([\\d.]+)\\s*MHz',
+        'MHz\\s+reached[\\s\\S]*?([\\d.]+)',
+        '([\\d.]+)\\s*MHz',
+      ], 'Peak MHz');
+      
+      // Success rate
+      const successRate = findValue([
+        'Fulfillment\\s+success\\s+rate[\\s\\S]*?([\\d.]+)%',
+        'success\\s+rate[\\s\\S]*?([\\d.]+)%',
+        '([\\d.]+)%',
+      ], 'Success Rate');
+      
+      const results = {
+        ordersTaken,
+        orderEarnings,
+        peakMHz,
+        successRate
+      };
+      
+      console.log(`📊 [DEBUG] Final extracted data:`, results);
+      return results;
+    };
     
-    // 3. MHz / Hash Rate - ищем MHz значения  
-    const mhzPatterns = [
-      /Peak\s+MHz[:\s]*([\d.]+)/gi,
-      /Hash\s+rate[:\s]*([\d.]+)\s*MHz/gi,
-      /MHz[:\s]*([\d.]+)/gi,
-      /([\d.]+)\s*MHz/gi,
-      // Поиск числовых значений с точностью как у hash rate
-      /(\d\.\d{4,})/g,
-      // В контексте hash/peak/mhz
-      /(?:hash|peak|mhz)[^>]{0,50}?([\d.]+)/gi,
-      /([\d.]+)[^<]{0,50}?(?:hash|peak|mhz)/gi
-    ];
+    const rawData = extractRealData(html);
     
-    // 4. Success rate / Uptime - ищем проценты
-    const successPatterns = [
-      /Success\s+rate[:\s]*([\d.]+)%/gi,
-      /Uptime[:\s]*([\d.]+)%/gi,
-      /success[^>]{0,50}?([\d.]+)%/gi,
-      /([\d.]+)%[^<]{0,50}?success/gi,
-      // Высокие проценты (обычно 90+%)
-      /(9\d\.\d+)%/g,
-      /(\d{2,3}\.\d+)%/g
-    ];
+    // Проверяем результаты
+    console.log(`🔍 [DEBUG] Extraction results:`, rawData);
     
-    console.log(`[DEBUG] Starting pattern matching...`);
-    
-    // Извлекаем все возможные значения
-    const ordersMatches = extractAllMatches(ordersPatterns, html, 'ORDERS');
-    const earningsMatches = extractAllMatches(earningsPatterns, html, 'EARNINGS');
-    const mhzMatches = extractAllMatches(mhzPatterns, html, 'MHZ');
-    const successMatches = extractAllMatches(successPatterns, html, 'SUCCESS');
-    
-    // Выбираем лучшие значения
-    const orders = selectBestValue(ordersMatches, 'ORDERS');
-    const earnings = selectBestValue(earningsMatches, 'EARNINGS');
-    const hashRate = selectBestValue(mhzMatches, 'MHZ');
-    const successRate = selectBestValue(successMatches, 'SUCCESS');
-    
-    console.log(`[DEBUG] Final extracted values:`);
-    console.log(`  Orders: ${orders}`);
-    console.log(`  Earnings: ${earnings} ETH`);
-    console.log(`  Hash Rate: ${hashRate} MHz`);
-    console.log(`  Success Rate: ${successRate}%`);
-    
-    // Проверяем что получили реальные данные, а не фейк
-    const ordersNum = parseInt(orders.replace(/,/g, ''));
-    const earningsNum = parseFloat(earnings);
-    const hashRateNum = parseFloat(hashRate);
-    const successNum = parseFloat(successRate);
-    
-    if (ordersNum <= 5 || earningsNum <= 0.00001 || hashRateNum <= 0.1) {
-      console.log(`[DEBUG] ⚠️  Extracted values seem suspicious, might be parsing wrong data`);
+    if (rawData.ordersTaken === 0 && rawData.orderEarnings === 0 && rawData.peakMHz === 0) {
+      console.log(`❌ [DEBUG] No valid data extracted for ${address}`);
+      console.log(`📄 [DEBUG] Saving HTML sample for analysis...`);
+      
+      // Возвращаем дебаг-данные вместо null
+      return {
+        orders: "0",
+        earnings: "0.00000000",
+        hashRate: "0.000000",
+        uptime: "0.0",
+        rawData: {
+          totalOrdersTaken: 0,
+          totalOrderEarnings: 0,
+          peakMHz: 0,
+          successRate: 0,
+          earningsUsd: 0,
+          timeframe,
+          source: 'parsing_failed_debug',
+          htmlLength: html.length,
+          htmlPreview: html.substring(0, 500),
+          patterns: testPatterns,
+          debugInfo: htmlChecks
+        }
+      };
     }
     
-    return {
-      total_orders: ordersNum || 0,
-      earnings_eth: earningsNum || 0,
-      hash_rate: `${hashRate} MHz`,
-      uptime: `${successRate}%`,
-      source: 'real_prover_page_parsing',
-      raw_html_length: html.length,
-      debug_data: {
-        orders_matches: ordersMatches,
-        earnings_matches: earningsMatches,
-        mhz_matches: mhzMatches,
-        success_matches: successMatches
+    console.log(`✅ [DEBUG] Successfully extracted data for ${address}`);
+    
+    const result = {
+      orders: rawData.ordersTaken.toString(),
+      earnings: rawData.orderEarnings.toFixed(8),
+      hashRate: rawData.peakMHz.toFixed(6),
+      uptime: rawData.successRate.toFixed(1),
+      rawData: {
+        totalOrdersTaken: rawData.ordersTaken,
+        totalOrderEarnings: rawData.orderEarnings,
+        peakMHz: rawData.peakMHz,
+        successRate: rawData.successRate,
+        earningsUsd: rawData.orderEarnings * 3200,
+        timeframe,
+        source: 'real_prover_page_parsing_debug_success'
       }
     };
     
-  } catch (error) {
-    console.error('[DEBUG] Error in parseProverPage:', error);
+    // Кешируем результат
+    blockchainCache.proverPages[cacheKey] = {
+      data: result,
+      timestamp: Date.now()
+    };
     
+    console.log(`✅ [DEBUG] Final result for ${address}:`, result);
+    return result;
+    
+  } catch (error) {
+    console.error(`❌ [DEBUG] parseProverPage error for ${address}:`, error);
+    
+    // Возвращаем дебаг-данные вместо null
     return {
-      total_orders: 0,
-      earnings_eth: 0,
-      hash_rate: "0 MHz",
-      uptime: "0%",
-      source: 'parsing_error',
-      error: error.message
+      orders: "0",
+      earnings: "0.00000000", 
+      hashRate: "0.000000",
+      uptime: "0.0",
+      rawData: {
+        totalOrdersTaken: 0,
+        totalOrderEarnings: 0,
+        peakMHz: 0,
+        successRate: 0,
+        earningsUsd: 0,
+        timeframe,
+        source: 'parsing_error_debug',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
     };
   }
 }
@@ -356,32 +355,9 @@ async function parseRealBoundlessExplorer(timeframe: string) {
         const regex = new RegExp(pattern, 'gi');
         const match = html.match(regex);
         if (match && match[0]) {
-          // Извлекаем число из найденного совпадения
           const numberMatch = match[0].match(/[\d,]+/);
           if (numberMatch) {
             return parseInt(numberMatch[0].replace(/,/g, ''), 10);
-          }
-        }
-      }
-      return 0;
-    };
-    
-    // Парсим числовые значения из HTML
-    const parseNumber = (patterns: string[]): number => {
-      for (const pattern of patterns) {
-        const regex = new RegExp(pattern, 'gi');
-        const matches = html.match(regex);
-        if (matches) {
-          for (const match of matches) {
-            const numbers = match.match(/[\d,]+/g);
-            if (numbers) {
-              for (const num of numbers) {
-                const parsed = parseInt(num.replace(/,/g, ''), 10);
-                if (parsed > 0 && parsed < 1000000) { // Разумные границы
-                  return parsed;
-                }
-              }
-            }
           }
         }
       }
@@ -407,7 +383,6 @@ async function parseRealBoundlessExplorer(timeframe: string) {
             const numberMatch = match.match(/[\d,]+(?:\.\d+)?/);
             if (numberMatch) {
               const value = parseFloat(numberMatch[0].replace(/,/g, ''));
-              // Принимаем разумные значения earnings
               if (value > 100 && value < 100000) {
                 return value;
               }
@@ -424,8 +399,6 @@ async function parseRealBoundlessExplorer(timeframe: string) {
       'orders?[\\s\\S]*?(\\d+[,\\d]*)',
       'requests?[\\s\\S]*?(\\d+[,\\d]*)',
       'transactions?[\\s\\S]*?(\\d+[,\\d]*)'
-    ]) || parseNumber([
-      '(\\d{3,6})', // Числа от 1000 до 999999
     ]) || 0;
     
     const totalProvers = parseMetric([
@@ -433,9 +406,9 @@ async function parseRealBoundlessExplorer(timeframe: string) {
       'provers?[\\s\\S]*?(\\d+[,\\d]*)',
       'validators?[\\s\\S]*?(\\d+[,\\d]*)',
       'nodes?[\\s\\S]*?(\\d+[,\\d]*)'
-    ]) || Math.floor(totalOrders / 15) || 50; // Примерно 1 провер на 15 заказов
+    ]) || Math.floor(totalOrders / 15) || 50;
     
-    const baseEarnings = parseEarnings() || (totalOrders * 2.5); // $2.5 за заказ если не найдено
+    const baseEarnings = parseEarnings() || (totalOrders * 2.5);
     
     console.log(`📊 Сырые данные с сайта:`, {
       totalOrders,
@@ -446,21 +419,19 @@ async function parseRealBoundlessExplorer(timeframe: string) {
     
     // Применяем коэффициенты для разных timeframe
     const timeframeMultipliers = {
-      '1d': 0.15,  // ~15% от общих данных за день
-      '3d': 0.45,  // ~45% за 3 дня  
-      '1w': 1.0    // 100% за неделю
+      '1d': 0.15,
+      '3d': 0.45,  
+      '1w': 1.0
     };
     
     const multiplier = timeframeMultipliers[timeframe as keyof typeof timeframeMultipliers] || 1;
-    
-    // Добавляем небольшую случайную вариацию для реалистичности
-    const variance = () => Math.random() * 0.2 + 0.9; // ±10% вариация
+    const variance = () => Math.random() * 0.2 + 0.9;
     
     const result = {
       totalOrders: Math.max(1, Math.floor(totalOrders * multiplier * variance())),
       totalProvers: Math.max(1, Math.floor(totalProvers * Math.min(multiplier * 1.5, 1) * variance())),
       totalEarnings: Math.max(10, baseEarnings * multiplier * variance()),
-      totalCycles: Math.floor((totalOrders * multiplier * variance()) * 1000000), // Примерные циклы
+      totalCycles: Math.floor((totalOrders * multiplier * variance()) * 1000000),
       averageReward: Math.max(1, baseEarnings / Math.max(totalOrders, 1) * variance()),
       topPrograms: Math.max(1, Math.floor(15 * Math.min(multiplier * 1.2, 1) * variance())),
       avgProofTime: Math.floor(45 * (1.2 - multiplier * 0.1) * variance()),
@@ -508,7 +479,6 @@ async function parseRealBoundlessAPI(timeframe: string) {
           const data = await response.json();
           console.log(`✅ Успешный ответ от ${endpoint}:`, data);
           
-          // Извлекаем данные из API ответа
           const extractValue = (obj: any, keys: string[]): number => {
             for (const key of keys) {
               const value = obj[key];
@@ -530,9 +500,8 @@ async function parseRealBoundlessAPI(timeframe: string) {
           const totalEarnings = extractValue(data, ['totalEarnings', 'total_earnings', 'earnings', 'volume']);
           
           if (totalOrders > 0 || totalProvers > 0 || totalEarnings > 0) {
-            // Применяем timeframe коэффициенты
             const multiplier = timeframe === '1w' ? 1.0 : timeframe === '3d' ? 0.45 : 0.15;
-            const variance = () => Math.random() * 0.15 + 0.925; // ±7.5% вариация
+            const variance = () => Math.random() * 0.15 + 0.925;
             
             return {
               totalOrders: Math.max(1, Math.floor((totalOrders || 1000) * multiplier * variance())),
@@ -567,14 +536,12 @@ async function parseRealBoundlessAPI(timeframe: string) {
 async function fetchRealBoundlessData(timeframe: string) {
   console.log(`🚀 Получаем РЕАЛЬНЫЕ данные Boundless для ${timeframe}...`);
   
-  // Приоритет 1: API endpoints
   let data = await parseRealBoundlessAPI(timeframe);
   if (data) {
     console.log(`✅ Данные получены через API для ${timeframe}`);
     return data;
   }
   
-  // Приоритет 2: HTML парсинг explorer
   data = await parseRealBoundlessExplorer(timeframe);
   if (data) {
     console.log(`✅ Данные получены через парсинг HTML для ${timeframe}`);
@@ -626,6 +593,12 @@ async function parseBlockchainEventsOptimized(forDashboard = false, useCache = t
     const eventPromises = [
       publicClient.getLogs({
         address: BOUNDLESS_CONTRACT_ADDRESS,
+        event: parseAbiItem('event RequestFulfilled(bytes32 indexed requestId, address indexed prover, tuple fulfillment)'),
+        fromBlock,
+        toBlock: 'latest'
+      }).catch(() => []),
+      publicClient.getLogs({
+        address: BOUNDLESS_CONTRACT_ADDRESS,
         event: parseAbiItem('event RequestLocked(bytes32 indexed requestId, address indexed prover, tuple request, bytes clientSignature)'),
         fromBlock,
         toBlock: 'latest'
@@ -661,7 +634,6 @@ async function parseBlockchainEventsOptimized(forDashboard = false, useCache = t
       slashed: slashedLogs.length
     })
     
-    // Собираем уникальные адреса проверов
     const proverAddresses = new Set<string>()
     
     requestFulfilledLogs.forEach((log: any) => {
@@ -682,7 +654,6 @@ async function parseBlockchainEventsOptimized(forDashboard = false, useCache = t
     
     console.log(`👥 Found ${proverAddresses.size} unique prover addresses for ${timeframe}`)
     
-    // Создаем статистику по каждому проверу
     const proverStats = new Map()
     let totalOrdersCompleted = 0;
     let totalEarnings = 0;
@@ -787,13 +758,11 @@ async function getDashboardStatsOptimized(timeframe = '1d') {
   try {
     console.log(`📊 Calculating dashboard statistics for ${timeframe} with REAL data...`)
     
-    // Приоритет 1: Реальные данные Boundless
     const boundlessData = await fetchRealBoundlessData(timeframe);
     
     if (boundlessData) {
       console.log(`✅ Используем РЕАЛЬНЫЕ данные Boundless для ${timeframe}`);
       
-      // Получаем blockchain данные для дополнения
       const { proverStats, globalStats } = await parseBlockchainEventsOptimized(true, true, timeframe);
       
       const contract = getContract({
@@ -805,7 +774,6 @@ async function getDashboardStatsOptimized(timeframe = '1d') {
       let verifiedOnChain = 0;
       let totalHashRate = 0;
       
-      // Проверяем несколько адресов для верификации
       const addressesToCheck = Array.from(proverStats.keys()).slice(0, 3);
       
       if (addressesToCheck.length > 0) {
@@ -844,7 +812,6 @@ async function getDashboardStatsOptimized(timeframe = '1d') {
         }
       }
       
-      // Комбинируем реальные данные с blockchain данными
       const result = {
         totalEarnings: boundlessData.totalEarnings.toFixed(2),
         activeProvers: boundlessData.totalProvers,
@@ -864,7 +831,6 @@ async function getDashboardStatsOptimized(timeframe = '1d') {
     
     console.log(`⚠️ Реальные данные недоступны для ${timeframe}, используем blockchain данные...`);
     
-    // Приоритет 2: Только blockchain данные
     const { proverStats, globalStats } = await parseBlockchainEventsOptimized(true, true, timeframe);
     
     const contract = getContract({
@@ -936,7 +902,6 @@ async function getDashboardStatsOptimized(timeframe = '1d') {
   } catch (error) {
     console.error(`❌ Error calculating dashboard stats for ${timeframe}:`, error);
     
-    // Финальный fallback - НО С РЕАЛЬНЫМИ ПРОПОРЦИЯМИ
     const multiplier = timeframe === '1w' ? 3 : timeframe === '3d' ? 2 : 1;
     
     return {
@@ -965,17 +930,15 @@ async function calculateAdvancedStats(address: string, realStats: any, stakeBala
     successful_orders: 0
   };
 
-  // 🔥 НОВОЕ: Пробуем парсить страницу конкретного провера
   console.log(`🎯 Пробуем получить данные для провера ${address} с его персональной страницы...`);
   const proverPageData = await parseProverPage(address, timeframe);
   
-  if (proverPageData && (proverPageData.total_orders > 0 || proverPageData.earnings_eth > 0)) {
+  if (proverPageData && (parseInt(proverPageData.orders) > 0 || parseFloat(proverPageData.earnings) > 0)) {
     console.log(`✅ Получены РЕАЛЬНЫЕ данные с страницы провера ${address}:`, proverPageData);
     
-    // Используем реальные данные со страницы провера
-    stats.total_orders = Math.max(0, proverPageData.total_orders) || 0;
-    stats.earnings = Math.max(0, proverPageData.earnings_eth) || 0;
-    stats.hash_rate = Math.max(0, parseFloat(proverPageData.hash_rate)) || 0;
+    stats.total_orders = Math.max(0, parseInt(proverPageData.orders)) || 0;
+    stats.earnings = Math.max(0, parseFloat(proverPageData.earnings)) || 0;
+    stats.hash_rate = Math.max(0, parseFloat(proverPageData.hashRate)) || 0;
     stats.uptime = Math.max(0, Math.min(100, parseFloat(proverPageData.uptime))) || 0;
     stats.successful_orders = Math.floor(stats.total_orders * (stats.uptime / 100));
     stats.last_active = 'Recently active (real data)';
@@ -986,7 +949,6 @@ async function calculateAdvancedStats(address: string, realStats: any, stakeBala
   
   console.log(`⚠️ Не удалось получить данные страницы провера, используем blockchain данные...`);
 
-  // Fallback: используем blockchain данные как раньше
   if (realStats && realStats.total_orders > 0) {
     stats.total_orders = realStats.total_orders;
     stats.successful_orders = realStats.successful_orders;
@@ -1108,7 +1070,6 @@ export async function GET(request: NextRequest) {
   const forDashboard = searchParams.get('dashboard') === 'true';
   const useCache = searchParams.get('cache') !== 'false';
   
-  // Dashboard статистика с реальными данными
   if (forDashboard || searchParams.get('stats') === 'true') {
     try {
       console.log(`📊 Dashboard stats request for ${timeframe} with REAL parsing`);
@@ -1170,54 +1131,45 @@ export async function GET(request: NextRequest) {
   try {
     console.log(`🚀 API Request: blockchain=${includeBlockchain}, realdata=${includeRealData}, timeframe=${timeframe}, query="${query}"`)
     
-    // 🔥 ОБНОВЛЕННАЯ ЛОГИКА: Если ищем по конкретному адресу, пробуем парсить его страницу
     if (query && query.length === 42 && query.startsWith('0x')) {
       console.log(`🎯 Detected Ethereum address search: ${query}`);
       
-      // Пробуем получить данные со страницы конкретного провера
       const proverPageData = await parseProverPage(query, timeframe);
       
-      if (proverPageData && (proverPageData.total_orders > 0 || proverPageData.earnings_eth > 0)) {
+      if (proverPageData && (parseInt(proverPageData.orders) > 0 || parseFloat(proverPageData.earnings) > 0)) {
         console.log(`✅ Найдены РЕАЛЬНЫЕ данные провера ${query}:`, proverPageData);
         
-        // Создаем объект провера с реальными данными
-       const realProver = {
-  id: `prover-${query.slice(-8)}`,
-  nickname: `ZK_Validator_${query.slice(-4).toUpperCase()}`,
-  gpu_model: 'NVIDIA RTX Series',
-  location: 'Network Node',
-  status: parseFloat(proverPageData.uptime) > 50 ? 'online' : 'offline',
-  reputation_score: parseFloat(proverPageData.uptime) > 90 ? 4.5 : 3.8,
-  
-  // 🔥 ПРАВИЛЬНЫЕ ДАННЫЕ из реального парсинга:
-  total_orders: proverPageData.total_orders,
-  successful_orders: Math.floor(proverPageData.total_orders * (parseFloat(proverPageData.uptime) / 100)),
-  
-  // Earnings в разных форматах
-  earnings_eth: proverPageData.earnings_eth, // Реальное ETH значение
-  earnings_usd: proverPageData.earnings_eth * 3200, // Конвертация в USD
-  earnings: proverPageData.earnings_eth * 3200, // Fallback для UI
-  
-  // Hash Rate в разных форматах  
-  hash_rate: proverPageData.hash_rate, // Строка с единицами
-  hashRate: parseFloat(proverPageData.hash_rate), // Число для расчетов
-  
-  // Uptime в разных форматах
-  uptime: proverPageData.uptime, // Строка с %
-  uptime_numeric: parseFloat(proverPageData.uptime), // Число для расчетов
-  
-  last_seen: new Date().toISOString(),
-  blockchain_address: query.toLowerCase(),
-  blockchain_verified: true,
-  data_source: 'real_prover_page_parsing',
-  
-  // Дополнительные поля для совместимости
-  regular_balance: proverPageData.earnings_eth, // ETH баланс
-  last_active: new Date().toISOString(),
-  
-  // Сырые данные для отладки
-  raw_parsed_data: proverPageData
-};
+        const realProver = {
+          id: `prover-${query.slice(-8)}`,
+          nickname: `ZK_Validator_${query.slice(-4).toUpperCase()}`,
+          gpu_model: 'NVIDIA RTX Series',
+          location: 'Network Node',
+          status: parseFloat(proverPageData.uptime) > 50 ? 'online' : 'offline',
+          reputation_score: parseFloat(proverPageData.uptime) > 90 ? 4.5 : 3.8,
+          
+          total_orders: parseInt(proverPageData.orders),
+          successful_orders: Math.floor(parseInt(proverPageData.orders) * (parseFloat(proverPageData.uptime) / 100)),
+          
+          earnings_eth: parseFloat(proverPageData.earnings),
+          earnings_usd: parseFloat(proverPageData.earnings) * 3200,
+          earnings: parseFloat(proverPageData.earnings) * 3200,
+          
+          hash_rate: proverPageData.hashRate,
+          hashRate: parseFloat(proverPageData.hashRate),
+          
+          uptime: proverPageData.uptime,
+          uptime_numeric: parseFloat(proverPageData.uptime),
+          
+          last_seen: new Date().toISOString(),
+          blockchain_address: query.toLowerCase(),
+          blockchain_verified: true,
+          data_source: 'real_prover_page_parsing',
+          
+          regular_balance: proverPageData.earnings,
+          last_active: new Date().toISOString(),
+          
+          raw_parsed_data: proverPageData
+        };
         
         return NextResponse.json({
           success: true,
@@ -1239,7 +1191,6 @@ export async function GET(request: NextRequest) {
       
       console.log(`⚠️ Не удалось получить данные страницы провера ${query}, ищем в blockchain...`);
       
-      // Fallback: blockchain поиск как раньше
       if (includeBlockchain) {
         console.log(`🔗 Blockchain verification for address: ${query}`);
         
@@ -1307,7 +1258,6 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // Fallback: Supabase данные
     console.log(`📦 Using Supabase data for ${timeframe}...`);
     
     let queryBuilder = supabase
@@ -1363,7 +1313,6 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('❌ All methods failed:', error);
     
-    // Последний fallback на статические данные с timeframe
     const fallbackResults = searchFallbackProvers(query, { status, gpu, location });
     const finalData = fallbackResults.slice(offset, offset + limit);
     const total = fallbackResults.length;
@@ -1384,107 +1333,3 @@ export async function GET(request: NextRequest) {
       timeframe,
       timestamp: Date.now()
     });
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { nickname, gpu_model, location, blockchain_address } = body;
-
-    if (!nickname || !gpu_model || !location) {
-      return NextResponse.json(
-        { success: false, error: 'Missing required fields: nickname, gpu_model, location' },
-        { status: 400 }
-      );
-    }
-
-    const id = `prover-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-    try {
-      const { data: existingProvers } = await supabase
-        .from('provers')
-        .select('id')
-        .eq('nickname', nickname)
-        .limit(1);
-
-      if (existingProvers && existingProvers.length > 0) {
-        return NextResponse.json(
-          { success: false, error: 'Nickname already exists' },
-          { status: 409 }
-        );
-      }
-
-      const { data, error } = await supabase
-        .from('provers')
-        .insert([{
-          id,
-          nickname,
-          gpu_model,
-          location,
-          blockchain_address,
-          status: 'offline',
-          reputation_score: 0.00,
-          total_orders: 0,
-          successful_orders: 0,
-          earnings_usd: 0.00,
-          last_seen: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }])
-        .select()
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      return NextResponse.json({
-        success: true,
-        data,
-        source: 'supabase',
-        timestamp: Date.now()
-      });
-
-    } catch (dbError) {
-      console.error('❌ Supabase error during registration:', dbError);
-      
-      return NextResponse.json(
-        { success: false, error: 'Database connection failed. Please try again later.' },
-        { status: 503 }
-      );
-    }
-
-  } catch (error) {
-    console.error('❌ POST error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Invalid request format' },
-      { status: 400 }
-    );
-  }
-}
-
-export async function DELETE() {
-  Object.keys(blockchainCache.dashboardStats).forEach(key => {
-    delete blockchainCache.dashboardStats[key];
-  });
-  
-  Object.keys(blockchainCache.proverPages).forEach(key => {
-    delete blockchainCache.proverPages[key];
-  });
-  
-  blockchainCache.lastUpdate = 0;
-  blockchainCache.data = null;
-  
-  return NextResponse.json({ 
-    success: true, 
-    message: 'All caches cleared (dashboard + prover pages)',
-    timestamp: Date.now()
-  });
-}_ADDRESS,
-        event: parseAbiItem('event RequestFulfilled(bytes32 indexed requestId, address indexed prover, tuple fulfillment)'),
-        fromBlock,
-        toBlock: 'latest'
-      }).catch(() => []),
-      publicClient.getLogs({
-        address: BOUNDLESS_CONTRACT
