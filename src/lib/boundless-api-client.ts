@@ -356,7 +356,8 @@ export class BoundlessApiClient {
       results.push({
         url: this.explorerUrl,
         working: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
+    
       });
     }
     
@@ -380,7 +381,7 @@ export class BoundlessApiClient {
         results.push({
           url: apiUrl,
           working: false,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     }
