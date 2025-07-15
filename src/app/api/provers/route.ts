@@ -1178,8 +1178,8 @@ export async function GET(request: NextRequest) {
           })
           
           const [stakeBalance, regularBalance] = await Promise.all([
-            contract.read.balanceOfStake([query as `0x${string}`]).catch(() => 0n),
-            contract.read.balanceOf([query as `0x${string}`]).catch(() => 0n)
+            contract.read.balanceOfStake([query as `0x${string}`]).catch(() => BigInt(0)),
+            contract.read.balanceOf([query as `0x${string}`]).catch(() => BigInt(0))
           ]);
           
           const { proverStats } = await parseBlockchainEventsOptimized(false, useCache, timeframe);
@@ -1193,7 +1193,7 @@ export async function GET(request: NextRequest) {
             const verifiedProver = {
               id: `prover-${query.slice(-8)}`,
               nickname: realStats?.address ? `Prover_${query.slice(-4).toUpperCase()}` : `ZK_Validator_${query.slice(-4)}`,
-              gpu_model: Number(stakeBalance) > 1000000000000000000n ? 'High-Performance GPU' : 'Standard GPU',
+              gpu_model: Number(stakeBalance) > BigInt('1000000000000000000') ? 'High-Performance GPU' : 'Standard GPU',
               location: 'Boundless Network',
               status: advancedStats.uptime > 0 ? 'active' : 'inactive',
               reputation_score: realStats?.reputation_score ? parseFloat(realStats.reputation_score) : (advancedStats.uptime / 20),
