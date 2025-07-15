@@ -114,6 +114,46 @@ const CACHE_DURATION = 30000; // 30 секунд кеш для dashboard
 const SEARCH_CACHE_DURATION = 300000; // 5 минут кеш для поиска
 const PROVER_PAGE_CACHE_DURATION = 300000; // 5 минут кеш для страниц проверов
 
+// 🔧 HELPER FUNCTION: извлечение значений из HTML
+function extractValue(html: string, patterns: string[], defaultValue: number = 0): number {
+  for (const pattern of patterns) {
+    const regex = new RegExp(pattern, 'gi');
+    const matches = html.match(regex);
+    if (matches) {
+      for (const match of matches) {
+        const numberMatch = match.match(/([\d.]+)/);
+        if (numberMatch && numberMatch[1]) {
+          const value = parseFloat(numberMatch[1]);
+          if (!isNaN(value) && value > 0) {
+            return value;
+          }
+        }
+      }
+    }
+  }
+  return defaultValue;
+}
+
+// 🔧 HELPER FUNCTION: извлечение значений из HTML
+function extractValue(html: string, patterns: string[], defaultValue: number = 0): number {
+  for (const pattern of patterns) {
+    const regex = new RegExp(pattern, 'gi');
+    const matches = html.match(regex);
+    if (matches) {
+      for (const match of matches) {
+        const numberMatch = match.match(/([\d.]+)/);
+        if (numberMatch && numberMatch[1]) {
+          const value = parseFloat(numberMatch[1]);
+          if (!isNaN(value) && value > 0) {
+            return value;
+          }
+        }
+      }
+    }
+  }
+  return defaultValue;
+}
+
 // 🔥 НОВАЯ ФУНКЦИЯ: ПАРСИНГ СТРАНИЦЫ КОНКРЕТНОГО ПРОВЕРА
 async function parseProverPage(address: string, timeframe: string = '1d') {
   try {
@@ -197,25 +237,6 @@ async function parseProverPage(address: string, timeframe: string = '1d') {
         /([\d.]+)%/i
       ]
     };
-    
-    function extractValue(html: string, patterns: string[], defaultValue: number = 0): number {
-      for (const pattern of patterns) {
-        const regex = new RegExp(pattern, 'gi');
-        const matches = html.match(regex);
-        if (matches) {
-          for (const match of matches) {
-            const numberMatch = match.match(/([\d.]+)/);
-            if (numberMatch && numberMatch[1]) {
-              const value = parseFloat(numberMatch[1]);
-              if (!isNaN(value) && value > 0) {
-                return value;
-              }
-            }
-          }
-        }
-      }
-      return defaultValue;
-    }
     
     // Извлекаем данные
     const ordersTaken = extractValue(html, patterns.ordersTaken, 0);
