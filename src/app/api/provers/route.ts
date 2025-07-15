@@ -183,38 +183,38 @@ async function parseProverPage(address: string, timeframe: string = '1d') {
     const patterns = {
       // Поиск "Orders taken: 947"
       ordersTaken: [
-        /Orders?\s+taken[:\s]+(\d+)/i,
-        /orders?[:\s]+(\d+)/i,
-        /completed[:\s]+(\d+)/i,
-        /requests?[:\s]+(\d+)/i,
-        /total[:\s]+(\d+)/i
+        'Orders?\\s+taken[:\\s]+(\\d+)',
+        'orders?[:\\s]+(\\d+)',
+        'completed[:\\s]+(\\d+)',
+        'requests?[:\\s]+(\\d+)',
+        'total[:\\s]+(\\d+)'
       ],
       
       // Поиск "Order earnings: 0.00001615 ETH"  
       orderEarnings: [
-        /Order\s+earnings?[:\s]+([\d.]+)\s*ETH/i,
-        /earnings?[:\s]+([\d.]+)\s*ETH/i,
-        /earned[:\s]+([\d.]+)\s*ETH/i,
-        /rewards?[:\s]+([\d.]+)\s*ETH/i,
-        /([\d.]+)\s*ETH/i
+        'Order\\s+earnings?[:\\s]+([\\d.]+)\\s*ETH',
+        'earnings?[:\\s]+([\\d.]+)\\s*ETH',
+        'earned[:\\s]+([\\d.]+)\\s*ETH',
+        'rewards?[:\\s]+([\\d.]+)\\s*ETH',
+        '([\\d.]+)\\s*ETH'
       ],
       
       // Поиск "Peak MHz reached: 3.631100 MHz"
       peakMHz: [
-        /Peak\s+MHz\s+reached[:\s]+([\d.]+)/i,
-        /MHz[:\s]+([\d.]+)/i,
-        /frequency[:\s]+([\d.]+)\s*MHz/i,
-        /speed[:\s]+([\d.]+)\s*MHz/i,
-        /([\d.]+)\s*MHz/i
+        'Peak\\s+MHz\\s+reached[:\\s]+([\\d.]+)',
+        'MHz[:\\s]+([\\d.]+)',
+        'frequency[:\\s]+([\\d.]+)\\s*MHz',
+        'speed[:\\s]+([\\d.]+)\\s*MHz',
+        '([\\d.]+)\\s*MHz'
       ],
       
       // Поиск "Fulfillment success rate: 96.6%"
       successRate: [
-        /Fulfillment\s+success\s+rate[:\s]+([\d.]+)%?/i,
-        /success\s+rate[:\s]+([\d.]+)%?/i,
-        /uptime[:\s]+([\d.]+)%?/i,
-        /reliability[:\s]+([\d.]+)%?/i,
-        /([\d.]+)%/i
+        'Fulfillment\\s+success\\s+rate[:\\s]+([\\d.]+)%?',
+        'success\\s+rate[:\\s]+([\\d.]+)%?',
+        'uptime[:\\s]+([\\d.]+)%?',
+        'reliability[:\\s]+([\\d.]+)%?',
+        '([\\d.]+)%'
       ]
     };
     
