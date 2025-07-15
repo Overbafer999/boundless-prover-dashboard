@@ -1153,23 +1153,43 @@ export async function GET(request: NextRequest) {
         console.log(`✅ Найдены РЕАЛЬНЫЕ данные провера ${query}:`, proverPageData);
         
         // Создаем объект провера с реальными данными
-        const realProver = {
-          id: `prover-${query.slice(-8)}`,
-          nickname: `ZK_Validator_${query.slice(-4).toUpperCase()}`,
-          gpu_model: 'NVIDIA RTX Series',
-          location: 'Network Node',
-          status: parseFloat(proverPageData.uptime) > 50 ? 'online' : 'offline',
-          reputation_score: parseFloat(proverPageData.uptime) > 90 ? 4.5 : 3.8,
-          total_orders: Math.max(0, parseInt(proverPageData.orders.toString())),
-          successful_orders: Math.floor(Math.max(0, parseInt(proverPageData.orders.toString())) * (Math.max(0, parseFloat(proverPageData.uptime)) / 100)),
-          earnings_usd: Math.max(0, parseFloat(proverPageData.earnings)),
-          hash_rate: `${Math.max(0, parseFloat(proverPageData.hashRate))} MHz`,
-          uptime: `${Math.max(0, Math.min(100, parseFloat(proverPageData.uptime)))}%`,
-          last_seen: new Date().toISOString(),
-          blockchain_address: query.toLowerCase(),
-          blockchain_verified: true,
-          data_source: 'real_prover_page_parsing'
-        };
+       const realProver = {
+  id: `prover-${query.slice(-8)}`,
+  nickname: `ZK_Validator_${query.slice(-4).toUpperCase()}`,
+  gpu_model: 'NVIDIA RTX Series',
+  location: 'Network Node',
+  status: parseFloat(proverPageData.uptime) > 50 ? 'online' : 'offline',
+  reputation_score: parseFloat(proverPageData.uptime) > 90 ? 4.5 : 3.8,
+  
+  // 🔥 ПРАВИЛЬНЫЕ ДАННЫЕ из реального парсинга:
+  total_orders: parseInt(proverPageData.orders),
+  successful_orders: Math.floor(parseInt(proverPageData.orders) * (parseFloat(proverPageData.uptime) / 100)),
+  
+  // Earnings в разных форматах
+  earnings_eth: parseFloat(proverPageData.earnings), // Реальное ETH значение
+  earnings_usd: parseFloat(proverPageData.earnings) * 3200, // Конвертация в USD
+  earnings: parseFloat(proverPageData.earnings) * 3200, // Fallback для UI
+  
+  // Hash Rate в разных форматах  
+  hash_rate: `${parseFloat(proverPageData.hashRate)} MHz`, // Строка с единицами
+  hashRate: parseFloat(proverPageData.hashRate), // Число для расчетов
+  
+  // Uptime в разных форматах
+  uptime: `${parseFloat(proverPageData.uptime)}%`, // Строка с %
+  uptime_numeric: parseFloat(proverPageData.uptime), // Число для расчетов
+  
+  last_seen: new Date().toISOString(),
+  blockchain_address: query.toLowerCase(),
+  blockchain_verified: true,
+  data_source: 'real_prover_page_parsing',
+  
+  // Дополнительные поля для совместимости
+  regular_balance: proverPageData.earnings, // ETH баланс
+  last_active: new Date().toISOString(),
+  
+  // Сырые данные для отладки
+  raw_parsed_data: proverPageData
+};
         
         return NextResponse.json({
           success: true,
