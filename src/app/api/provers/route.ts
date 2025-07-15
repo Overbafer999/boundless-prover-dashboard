@@ -1344,7 +1344,6 @@ export async function GET(request: NextRequest) {
       timestamp: Date.now()
     });
   }
-}
 
 // Функция для очистки кеша
 export async function DELETE() {
