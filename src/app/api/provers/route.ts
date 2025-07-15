@@ -134,6 +134,65 @@ function extractValue(html: string, patterns: string[], defaultValue: number = 0
   return defaultValue;
 }
 
+// 🔧 HELPER FUNCTION: Анализ всех совпадений regex (ВЫНЕСЕНА НАРУЖУ)
+function extractAllMatches(patterns: RegExp[], html: string, dataType: string) {
+  const allMatches: string[] = [];
+  
+  for (const pattern of patterns) {
+    const matches = Array.from(html.matchAll(pattern));
+    if (matches.length > 0) {
+      console.log(`[DEBUG] ${dataType} - Pattern ${pattern.source} found ${matches.length} matches:`);
+      
+      matches.forEach((match, index) => {
+        const value = match[1] || match[0];
+        console.log(`  Match ${index + 1}: "${value}"`);
+        if (value && value.match(/\d/)) {
+          allMatches.push(value.replace(/[^\d.,]/g, ''));
+        }
+      });
+    }
+  }
+  
+  console.log(`[DEBUG] ${dataType} - All extracted values:`, allMatches);
+  return allMatches;
+}
+
+// 🔧 HELPER FUNCTION: Выбор лучшего значения (ВЫНЕСЕНА НАРУЖУ)
+function selectBestValue(matches: string[], dataType: string): string {
+  if (matches.length === 0) return '0';
+  
+  console.log(`[DEBUG] ${dataType} - Selecting best from:`, matches);
+  
+  // Убираем очевидно неправильные значения
+  const filtered = matches.filter(value => {
+    const num = parseFloat(value.replace(/,/g, ''));
+    
+    // Фильтруем по типу данных
+    switch (dataType) {
+      case 'ORDERS':
+        return num > 10 && num < 10000; // Реалистичное количество заказов
+      case 'EARNINGS':
+        return num > 0.0001 && num < 100; // Реалистичные earnings в ETH
+      case 'MHZ':
+        return num > 0.1 && num < 1000; // Реалистичный hash rate
+      case 'SUCCESS':
+        return num > 50 && num <= 100; // Реалистичный success rate
+      default:
+        return true;
+    }
+  });
+  
+  console.log(`[DEBUG] ${dataType} - After filtering:`, filtered);
+  
+  if (filtered.length === 0) return matches[0] || '0';
+  
+  // Возвращаем первое разумное значение
+  const result = filtered[0];
+  console.log(`[DEBUG] ${dataType} - Selected value: ${result}`);
+  return result;
+}
+
+// 🔥 ЧЕСТНАЯ ФУНКЦИЯ parseProverPage БЕЗ КОСТЫЛЕЙ
 async function parseProverPage(address: string, timeframe: string) {
   try {
     // Маппинг timeframe для URL параметра
@@ -210,69 +269,11 @@ async function parseProverPage(address: string, timeframe: string) {
     
     console.log(`[DEBUG] Starting pattern matching...`);
     
-    // Функция для поиска и анализа всех совпадений
-    function extractAllMatches(patterns: RegExp[], html: string, dataType: string) {
-      const allMatches: string[] = [];
-      
-      for (const pattern of patterns) {
-        const matches = Array.from(html.matchAll(pattern));
-        if (matches.length > 0) {
-          console.log(`[DEBUG] ${dataType} - Pattern ${pattern.source} found ${matches.length} matches:`);
-          
-          matches.forEach((match, index) => {
-            const value = match[1] || match[0];
-            console.log(`  Match ${index + 1}: "${value}"`);
-            if (value && value.match(/\d/)) {
-              allMatches.push(value.replace(/[^\d.,]/g, ''));
-            }
-          });
-        }
-      }
-      
-      console.log(`[DEBUG] ${dataType} - All extracted values:`, allMatches);
-      return allMatches;
-    }
-    
     // Извлекаем все возможные значения
     const ordersMatches = extractAllMatches(ordersPatterns, html, 'ORDERS');
     const earningsMatches = extractAllMatches(earningsPatterns, html, 'EARNINGS');
     const mhzMatches = extractAllMatches(mhzPatterns, html, 'MHZ');
     const successMatches = extractAllMatches(successPatterns, html, 'SUCCESS');
-    
-    // Функция для выбора наиболее вероятного значения
-    function selectBestValue(matches: string[], dataType: string): string {
-      if (matches.length === 0) return '0';
-      
-      console.log(`[DEBUG] ${dataType} - Selecting best from:`, matches);
-      
-      // Убираем очевидно неправильные значения
-      const filtered = matches.filter(value => {
-        const num = parseFloat(value.replace(/,/g, ''));
-        
-        // Фильтруем по типу данных
-        switch (dataType) {
-          case 'ORDERS':
-            return num > 10 && num < 10000; // Реалистичное количество заказов
-          case 'EARNINGS':
-            return num > 0.0001 && num < 100; // Реалистичные earnings в ETH
-          case 'MHZ':
-            return num > 0.1 && num < 1000; // Реалистичный hash rate
-          case 'SUCCESS':
-            return num > 50 && num <= 100; // Реалистичный success rate
-          default:
-            return true;
-        }
-      });
-      
-      console.log(`[DEBUG] ${dataType} - After filtering:`, filtered);
-      
-      if (filtered.length === 0) return matches[0] || '0';
-      
-      // Возвращаем первое разумное значение
-      const result = filtered[0];
-      console.log(`[DEBUG] ${dataType} - Selected value: ${result}`);
-      return result;
-    }
     
     // Выбираем лучшие значения
     const orders = selectBestValue(ordersMatches, 'ORDERS');
@@ -625,12 +626,6 @@ async function parseBlockchainEventsOptimized(forDashboard = false, useCache = t
     const eventPromises = [
       publicClient.getLogs({
         address: BOUNDLESS_CONTRACT_ADDRESS,
-        event: parseAbiItem('event RequestFulfilled(bytes32 indexed requestId, address indexed prover, tuple fulfillment)'),
-        fromBlock,
-        toBlock: 'latest'
-      }).catch(() => []),
-      publicClient.getLogs({
-        address: BOUNDLESS_CONTRACT_ADDRESS,
         event: parseAbiItem('event RequestLocked(bytes32 indexed requestId, address indexed prover, tuple request, bytes clientSignature)'),
         fromBlock,
         toBlock: 'latest'
@@ -974,13 +969,13 @@ async function calculateAdvancedStats(address: string, realStats: any, stakeBala
   console.log(`🎯 Пробуем получить данные для провера ${address} с его персональной страницы...`);
   const proverPageData = await parseProverPage(address, timeframe);
   
-  if (proverPageData && (proverPageData.orders > 0 || parseFloat(proverPageData.earnings) > 0)) {
+  if (proverPageData && (proverPageData.total_orders > 0 || proverPageData.earnings_eth > 0)) {
     console.log(`✅ Получены РЕАЛЬНЫЕ данные с страницы провера ${address}:`, proverPageData);
     
     // Используем реальные данные со страницы провера
-    stats.total_orders = Math.max(0, parseInt(proverPageData.orders.toString())) || 0;
-    stats.earnings = Math.max(0, parseFloat(proverPageData.earnings)) || 0;
-    stats.hash_rate = Math.max(0, parseFloat(proverPageData.hashRate)) || 0;
+    stats.total_orders = Math.max(0, proverPageData.total_orders) || 0;
+    stats.earnings = Math.max(0, proverPageData.earnings_eth) || 0;
+    stats.hash_rate = Math.max(0, parseFloat(proverPageData.hash_rate)) || 0;
     stats.uptime = Math.max(0, Math.min(100, parseFloat(proverPageData.uptime))) || 0;
     stats.successful_orders = Math.floor(stats.total_orders * (stats.uptime / 100));
     stats.last_active = 'Recently active (real data)';
@@ -1182,7 +1177,7 @@ export async function GET(request: NextRequest) {
       // Пробуем получить данные со страницы конкретного провера
       const proverPageData = await parseProverPage(query, timeframe);
       
-      if (proverPageData && (proverPageData.orders > 0 || parseFloat(proverPageData.earnings) > 0)) {
+      if (proverPageData && (proverPageData.total_orders > 0 || proverPageData.earnings_eth > 0)) {
         console.log(`✅ Найдены РЕАЛЬНЫЕ данные провера ${query}:`, proverPageData);
         
         // Создаем объект провера с реальными данными
@@ -1195,20 +1190,20 @@ export async function GET(request: NextRequest) {
   reputation_score: parseFloat(proverPageData.uptime) > 90 ? 4.5 : 3.8,
   
   // 🔥 ПРАВИЛЬНЫЕ ДАННЫЕ из реального парсинга:
-  total_orders: parseInt(proverPageData.orders),
-  successful_orders: Math.floor(parseInt(proverPageData.orders) * (parseFloat(proverPageData.uptime) / 100)),
+  total_orders: proverPageData.total_orders,
+  successful_orders: Math.floor(proverPageData.total_orders * (parseFloat(proverPageData.uptime) / 100)),
   
   // Earnings в разных форматах
-  earnings_eth: parseFloat(proverPageData.earnings), // Реальное ETH значение
-  earnings_usd: parseFloat(proverPageData.earnings) * 3200, // Конвертация в USD
-  earnings: parseFloat(proverPageData.earnings) * 3200, // Fallback для UI
+  earnings_eth: proverPageData.earnings_eth, // Реальное ETH значение
+  earnings_usd: proverPageData.earnings_eth * 3200, // Конвертация в USD
+  earnings: proverPageData.earnings_eth * 3200, // Fallback для UI
   
   // Hash Rate в разных форматах  
-  hash_rate: `${parseFloat(proverPageData.hashRate)} MHz`, // Строка с единицами
-  hashRate: parseFloat(proverPageData.hashRate), // Число для расчетов
+  hash_rate: proverPageData.hash_rate, // Строка с единицами
+  hashRate: parseFloat(proverPageData.hash_rate), // Число для расчетов
   
   // Uptime в разных форматах
-  uptime: `${parseFloat(proverPageData.uptime)}%`, // Строка с %
+  uptime: proverPageData.uptime, // Строка с %
   uptime_numeric: parseFloat(proverPageData.uptime), // Число для расчетов
   
   last_seen: new Date().toISOString(),
@@ -1217,7 +1212,7 @@ export async function GET(request: NextRequest) {
   data_source: 'real_prover_page_parsing',
   
   // Дополнительные поля для совместимости
-  regular_balance: proverPageData.earnings, // ETH баланс
+  regular_balance: proverPageData.earnings_eth, // ETH баланс
   last_active: new Date().toISOString(),
   
   // Сырые данные для отладки
@@ -1486,4 +1481,10 @@ export async function DELETE() {
     message: 'All caches cleared (dashboard + prover pages)',
     timestamp: Date.now()
   });
-}
+}_ADDRESS,
+        event: parseAbiItem('event RequestFulfilled(bytes32 indexed requestId, address indexed prover, tuple fulfillment)'),
+        fromBlock,
+        toBlock: 'latest'
+      }).catch(() => []),
+      publicClient.getLogs({
+        address: BOUNDLESS_CONTRACT
