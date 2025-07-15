@@ -148,7 +148,7 @@ async function parseProverPage(address: string, timeframe: string = '1d') {
     }
     
     // Формируем URL страницы провера
-    const proverPageUrl = `https://explorer.beboundless.xyz/prover/${address}`;
+    const proverPageUrl = `https://explorer.beboundless.xyz/provers/${address}`;
     
     const response = await fetch(proverPageUrl, {
       headers: {
