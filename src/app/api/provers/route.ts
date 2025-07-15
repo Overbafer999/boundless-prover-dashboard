@@ -289,7 +289,26 @@ async function parseProverPage(address: string, timeframe: string = '1d') {
         successRate: rawData.successRate,
         earningsUsd: rawData.orderEarnings * 3200,
         timeframe,
-        source: 'real_prover_page_parsing_debug_success'
+        source: 'real_prover_page_parsing_debug_success',
+        
+        // 🔥 ОТЛАДОЧНЫЕ ПОЛЯ ДЛЯ АНАЛИЗА ПРОБЛЕМЫ:
+        htmlLength: html.length,
+        htmlPreview: html.substring(0, 500),
+        htmlChecks: htmlChecks,
+        testPatterns: testPatterns,
+        debugExtraction: {
+          ordersFound: html.match(/Orders\s+taken[\s\S]*?(\d{1,4}(?:,\d{3})*)/gi),
+          earningsFound: html.match(/Order\s+earnings[\s\S]*?([\d.]+)\s*ETH/gi),
+          mhzFound: html.match(/Peak\s+MHz[\s\S]*?([\d.]+)/gi),
+          successFound: html.match(/success\s+rate[\s\S]*?([\d.]+)%/gi),
+          allNumbers: html.match(/\d+/g)?.slice(0, 50), // Первые 50 чисел в HTML
+          specificSearches: {
+            search950: html.includes('950'),
+            search0001615: html.includes('0.0001615'),
+            search3631180: html.includes('3.631180'),
+            searchOrdersTaken: html.includes('Orders taken')
+          }
+        }
       }
     };
     
