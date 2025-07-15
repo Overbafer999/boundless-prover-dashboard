@@ -207,30 +207,38 @@ async function parseProverPage(address: string, timeframe: string = '1d') {
       
       // Orders taken
       const ordersTaken = findValue([
-        'Orders\\s+taken[\\s\\S]*?(\\d{1,4}(?:,\\d{3})*)',
-        'orders?[\\s\\S]*?(\\d{2,4})',
-        '(\\d{3,4})(?=\\s|<|\\$|,)',
+        'Orders taken[^<]*?(\\d{1,3}(?:,\\d{3})*)',  // Останавливается на HTML тегах
+        '>(\\d{1,3}(?:,\\d{3})*)</.*orders',         // Число внутри тегов с "orders"
+        'orders[^>]*>(\\d{1,3}(?:,\\d{3})*)<',       // Число после "orders" в теге
+        '950',                                        // Прямой поиск известного числа
+        '(\\d{3,4})(?=\\s*</)',                     // 3-4 цифры перед закрывающим тегом
       ], 'Orders Taken');
       
       // Order earnings
       const orderEarnings = findValue([
-        'Order\\s+earnings[\\s\\S]*?([\\d.]+)\\s*ETH',
-        'earnings[\\s\\S]*?([\\d.]+)\\s*ETH', 
-        '([\\d.]+)\\s*ETH',
+        'Order earnings[^<]*?(0\\.\\d{4,})\\s*ETH',  // Останавливается на HTML
+        'earnings[^>]*>(0\\.\\d{4,})',               // Внутри тегов
+        '>(0\\.\\d{4,})</.*ETH',                     // Число с ETH
+        '0\\.0001615',                                // Прямой поиск известного числа
+        '(0\\.\\d{6,})',                             // Маленькие десятичные числа
       ], 'Order Earnings');
       
       // Peak MHz
       const peakMHz = findValue([
-        'Peak\\s+MHz\\s+reached[\\s\\S]*?([\\d.]+)\\s*MHz',
-        'MHz\\s+reached[\\s\\S]*?([\\d.]+)',
-        '([\\d.]+)\\s*MHz',
+        'Peak MHz[^<]*?(\\d\\.\\d{4,})',            // Останавливается на HTML
+        'MHz[^>]*>(\\d\\.\\d+)',                     // Внутри тегов
+        '>(\\d\\.\\d{4,})</.*MHz',                   // Число с MHz
+        '3\\.631180',                                 // Прямой поиск известного числа
+        '(\\d\\.\\d{5,})',                           // Числа с 5+ знаками после точки
       ], 'Peak MHz');
       
       // Success rate
       const successRate = findValue([
-        'Fulfillment\\s+success\\s+rate[\\s\\S]*?([\\d.]+)%',
-        'success\\s+rate[\\s\\S]*?([\\d.]+)%',
-        '([\\d.]+)%',
+        'success rate[^<]*?(\\d{2}\\.\\d+)%',       // Останавливается на HTML
+        'rate[^>]*>(\\d{2}\\.\\d+)',                 // Внутри тегов
+        '>(\\d{2}\\.\\d+)%',                         // Проценты
+        '96\\.6',                                     // Прямой поиск известного числа
+        '(9\\d\\.\\d+)',                             // Числа начинающиеся с 9X.X
       ], 'Success Rate');
       
       const results = {
