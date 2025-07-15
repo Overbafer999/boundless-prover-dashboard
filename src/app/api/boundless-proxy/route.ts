@@ -146,7 +146,11 @@ async function parseExplorerDirect(timeframe: string): Promise<BoundlessStats | 
     
     // 🔍 ПАРСИНГ DASHBOARD ЭЛЕМЕНТОВ
     const parseDashboardElements = () => {
-      const dashboardData = {
+      const dashboardData: {
+        cards: Array<{title: string; value: number; context: string}>;
+        stats: any[];
+        counters: any[];
+      } = {
         cards: [],
         stats: [],
         counters: []
@@ -393,7 +397,6 @@ async function fetchRealBoundlessData(timeframe: string): Promise<BoundlessStats
   return null;
 }
 
-// 🔥 ОБНОВЛЕННАЯ POST ФУНКЦИЯ - ТОЛЬКО РЕАЛЬНЫЕ ДАННЫЕ
 export async function POST(request: NextRequest) {
   try {
     const { timeframe, action } = await request.json();
@@ -452,7 +455,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// 🔥 ОБНОВЛЕННАЯ GET ФУНКЦИЯ - ТЕСТИРОВАНИЕ И ДИАГНОСТИКА
 export async function GET() {
   try {
     console.log('🔍 Тестируем доступность РЕАЛЬНЫХ данных Boundless...');
