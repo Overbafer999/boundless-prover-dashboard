@@ -1,551 +1,4 @@
-// src/app/page.tsx — ПОЛНАЯ ВЕРСИЯ С УЛУЧШЕННЫМ ДИЗАЙНОМ BY OveR | Sci-Fi Neon Glassmorphism Dashboard 2025
-'use client'
-import React, { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import {
-  Activity, TrendingUp, Zap, RefreshCw, Eye, EyeOff, BarChart3, Users,
-  Clock, DollarSign, Search, X, ExternalLink, Copy, CheckCircle, Shield
-} from 'lucide-react'
-
-// ===== Интерфейсы =====
-interface ProverData {
-  id: string
-  nickname: string
-  earnings_usd?: number
-  earnings?: number
-  hashRate?: number
-  status: 'online' | 'busy' | 'offline' | 'maintenance'
-  lastActive?: string
-  last_seen?: string
-  uptime?: number
-  gpu_model?: string
-  gpu?: string
-  location?: string
-  reputation_score?: number
-  total_orders?: number
-  successful_orders?: number
-  blockchain_address?: string
-  blockchain_verified?: boolean
-  eth_balance?: string
-  stake_balance?: string
-  is_active_onchain?: boolean
-  success_rate?: string | number
-  slashes?: number
-  onchain_activity?: boolean
-  source?: string
-  last_blockchain_check?: string
-}
-
-interface OrderData {
-  id: string
-  reward: number
-  prover?: string
-  status: 'processing' | 'pending' | 'completed' | 'failed'
-  createdAt: string
-  priority?: 'high' | 'medium' | 'low'
-}
-
-interface DashboardStats {
-  totalEarnings: string
-  activeProvers: number
-  verifiedOnChain: number
-  totalOrdersCompleted: number
-  totalHashRate: number
-  avgProofTime?: number
-  successRate?: number
-  timeframe?: string
-  period?: string
-  dataSource?: string
-  blockRange?: number
-}
-
-const debugDashboardAPI = async () => {
-  console.log('🔍 === API DEBUGGING START ===')
-  
-  const endpoints = [
-    '/api/provers?dashboard=true&timeframe=1d',
-    '/api/provers?timeframe=1d&dashboard=true', 
-    '/api/boundless-proxy'
-  ]
-  
-  for (const endpoint of endpoints) {
-    try {
-      console.log(`🧪 Testing: ${endpoint}`)
-      const response = await fetch(endpoint)
-      console.log(`📡 Status: ${response.status}`)
-      
-      if (response.ok) {
-        const data = await response.json()
-        console.log(`📊 Response structure:`, {
-          hasSuccess: 'success' in data,
-          hasData: 'data' in data,
-          keys: Object.keys(data),
-          sample: data
-        })
-      } else {
-        const errorText = await response.text()
-        console.log(`❌ Error: ${errorText}`)
-      }
-    } catch (error) {
-      console.log(`🚫 Failed: ${error}`)
-    }
-  }
-  
-  console.log('🔍 === API DEBUGGING END ===')
-}
-
-// ===== "By OveR" Signature =====
-const OverSignature = () => (
-  <div className="fixed top-5 right-8 z-50 select-none pointer-events-none">
-    <span
-      className="font-orbitron text-xs md:text-sm font-bold uppercase bg-gradient-to-r from-[#38fff6] via-[#5e5cfc] to-[#b840f4] bg-clip-text text-transparent drop-shadow-[0_0_12px_#38fff6bb] tracking-wider opacity-90"
-      style={{
-        textShadow: '0 0 8px #38fff6cc, 0 0 24px #b840f488'
-      }}
-    >
-      By OveR
-    </span>
-  </div>
-)
-
-// ===== StatusBadge =====
-const StatusBadge = ({ status }: { status: string }) => {
-  const getStatusConfig = () => {
-    switch (status) {
-      case 'online': return { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/50', glow: 'shadow-emerald-500/25' }
-      case 'busy': return { bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/50', glow: 'shadow-blue-500/25' }
-      case 'offline': return { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/50', glow: 'shadow-red-500/25' }
-      case 'maintenance': return { bg: 'bg-yellow-500/20', text: 'text-yellow-400', border: 'border-yellow-500/50', glow: 'shadow-yellow-500/25' }
-      case 'processing': return { bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/50', glow: 'shadow-blue-500/25' }
-      case 'pending': return { bg: 'bg-yellow-500/20', text: 'text-yellow-400', border: 'border-yellow-500/50', glow: 'shadow-yellow-500/25' }
-      case 'completed': return { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/50', glow: 'shadow-emerald-500/25' }
-      case 'failed': return { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/50', glow: 'shadow-red-500/25' }
-      default: return { bg: 'bg-gray-500/20', text: 'text-gray-400', border: 'border-gray-500/50', glow: 'shadow-gray-500/25' }
-    }
-  }
-  const config = getStatusConfig()
-  return (
-    <motion.span
-      className={`px-3 py-1.5 rounded-full text-xs font-bold border ${config.bg} ${config.text} ${config.border} ${config.glow} shadow-lg backdrop-blur-sm`}
-      whileHover={{ scale: 1.07 }}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      style={{ boxShadow: '0 0 10px 1px #38fff6bb, 0 0 2px 0px #b840f455' }}
-    >
-      <span className="flex items-center gap-1">
-        <motion.div
-          className={`w-1.5 h-1.5 rounded-full ${config.text.replace('text-', 'bg-')}`}
-          animate={{
-            scale: status === 'processing' || status === 'busy' ? [1, 1.3, 1] : 1,
-            opacity: status === 'offline' ? [1, 0.3, 1] : 1
-          }}
-          transition={{ duration: 2, repeat: Infinity }}
-        />
-        {status.toUpperCase()}
-      </span>
-    </motion.span>
-  )
-}
-
-// ===== LoadingSpinner =====
-const LoadingSpinner = () => (
-  <motion.div className="flex items-center justify-center p-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-    <motion.div
-      animate={{ rotate: 360 }}
-      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-      className="rounded-full h-8 w-8 border-2 border-[#38fff6] border-t-transparent shadow-[0_0_16px_2px_#38fff6bb]"
-    />
-    <span className="ml-3 text-gray-400 font-medium">Loading real-time blockchain data...</span>
-  </motion.div>
-)
-
-// ===== StatCard =====
-const StatCard = ({
-  title, value, subtitle, icon: Icon, gradient, delay = 0, isLoading = false
-}: {
-  title: string
-  value: string
-  subtitle: string
-  icon: any
-  gradient: string
-  delay?: number
-  isLoading?: boolean
-}) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay, duration: 0.55 }}
-    whileHover={{ scale: 1.028, y: -8 }}
-    className={`
-      ${gradient}
-      rounded-2xl p-6 border border-white/15
-      shadow-[0_2px_24px_0px_#38fff6aa,0_0px_64px_8px_#b840f444]
-      backdrop-blur-xl
-      relative overflow-hidden group
-      after:content-[''] after:absolute after:inset-0 after:rounded-2xl
-      after:border after:border-[#38fff6]/30 after:pointer-events-none
-      after:opacity-0 group-hover:after:opacity-100
-      transition-all duration-300
-    `}
-    style={{ background: 'linear-gradient(135deg, rgba(56,255,246,0.08) 0%, rgba(90,60,255,0.13) 100%)' }}
-  >
-    <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-    <div className="relative z-10">
-      <div className="flex items-center justify-between mb-4">
-        <motion.div whileHover={{ rotate: 360 }} transition={{ duration: 0.6 }}>
-          <Icon className="w-8 h-8 text-white/80 drop-shadow-[0_2px_12px_#38fff6bb]" />
-        </motion.div>
-        <motion.div
-          animate={{ scale: [1, 1.12, 1] }}
-          transition={{ duration: 2.7, repeat: Infinity }}
-          className="w-2 h-2 rounded-full bg-white/60"
-        />
-      </div>
-      <h3 className="text-lg font-orbitron font-bold text-white/90 mb-2">{title}</h3>
-      <motion.p
-        className="text-3xl font-black text-white mb-1"
-        key={value}
-        initial={{ scale: 1.2, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-      >
-        {isLoading ? (
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            className="w-8 h-8 border-2 border-white border-t-transparent rounded-full inline-block"
-          />
-        ) : value}
-      </motion.p>
-      <p className="text-sm text-white/70">{subtitle}</p>
-    </div>
-  </motion.div>
-)
-
-// ===== ProverCard с улучшенным дизайном =====
-const ProverCard = ({ prover, index }: { prover: ProverData; index: number }) => {
-  const [copiedAddress, setCopiedAddress] = useState('')
-  
-  // Безопасное получение значений с fallback
-  const nickname = prover?.nickname || 'Unknown Prover'
-  const gpu = prover?.gpu_model || prover?.gpu || 'Unknown GPU'
-  const location = prover?.location || 'Unknown Location'
-  const earnings = prover?.earnings_usd || prover?.earnings || 0
-  const hashRate = prover?.hashRate || 0
-  const uptime = prover?.uptime || 0
-  const lastActive = prover?.lastActive || prover?.last_seen || new Date().toISOString()
-  const status = prover?.status || 'offline'
-  const blockchainVerified = prover?.blockchain_verified || false
-  const blockchainAddress = prover?.blockchain_address
-
-  const copyAddress = async (address: string) => {
-    try {
-      await navigator.clipboard.writeText(address)
-      setCopiedAddress(address)
-      setTimeout(() => setCopiedAddress(''), 2000)
-    } catch (err) {
-      console.error('Failed to copy address:', err)
-    }
-  }
-
-  const formatBalance = (balance?: string, symbol: string = 'ETH') => {
-    if (!balance) return '0.000'
-    const num = parseFloat(balance)
-    return `${num.toFixed(6)} ${symbol}`
-  }
-
-  const getStatusText = () => {
-    if (prover.blockchain_verified && prover.is_active_onchain) return 'ACTIVE ON-CHAIN'
-    if (status === 'online') return 'ONLINE'
-    if (status === 'busy') return 'BUSY'
-    if (status === 'maintenance') return 'MAINTENANCE'
-    return 'OFFLINE'
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.09, duration: 0.54 }}
-      whileHover={{ scale: 1.045, y: -9 }}
-      className={`
-        bg-gradient-to-br from-[#151828d0] via-[#1e2233cf] to-[#191e2ebf]
-        rounded-2xl p-6 border border-[#38fff6]/20 hover:border-[#38fff6]/80
-        shadow-[0_2px_32px_2px_rgba(56,255,246,0.10)]
-        hover:shadow-[0_0_32px_8px_rgba(56,255,246,0.23),0_8px_48px_12px_rgba(84,67,255,0.08)]
-        backdrop-blur-2xl
-        transition-all duration-300 relative overflow-hidden group
-        after:content-[''] after:absolute after:inset-0 after:rounded-2xl
-        after:pointer-events-none after:border after:border-[#38fff6]/30 after:opacity-0
-        group-hover:after:opacity-100
-      `}
-      style={{ background: 'linear-gradient(135deg, rgba(56,255,246,0.10) 0%, rgba(184,64,244,0.10) 100%)' }}
-    >
-      <div className="absolute inset-0 bg-gradient-to-br from-boundless-accent/5 to-boundless-neon/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-      <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-boundless-neon/20 to-transparent rounded-bl-3xl" />
-      
-      <div className="relative z-10">
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-xl font-orbitron font-bold text-white">{nickname}</h3>
-              {blockchainVerified && (
-                <motion.span 
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30"
-                  whileHover={{ scale: 1.05 }}
-                >
-                  <Shield className="w-3 h-3" />
-                  VERIFIED
-                </motion.span>
-              )}
-              {prover.source && (
-                <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                  {prover.source.replace('_', ' ').toUpperCase()}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-gray-400">{gpu} • {location}</p>
-            
-            {/* Blockchain Address */}
-            {blockchainAddress && (
-              <div className="flex items-center gap-2 mt-2">
-                <code className="text-xs text-gray-500">{blockchainAddress.slice(0, 10)}...</code>
-                <button
-                  onClick={() => copyAddress(blockchainAddress)}
-                  className="text-gray-500 hover:text-boundless-accent transition-colors"
-                >
-                  {copiedAddress === blockchainAddress ? (
-                    <CheckCircle className="w-3 h-3 text-green-500" />
-                  ) : (
-                    <Copy className="w-3 h-3" />
-                  )}
-                </button>
-                <a
-                  href={`https://basescan.org/address/${blockchainAddress}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-gray-500 hover:text-boundless-accent transition-colors"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-            )}
-          </div>
-          <StatusBadge status={getStatusText().toLowerCase().replace(/[^a-z]/g, '')} />
-        </div>
-        
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-gray-300 text-sm">
-                {prover.eth_balance || prover.stake_balance ? 'Balance:' : 'Earnings:'}
-              </span>
-              <motion.span 
-                className="font-bold text-boundless-accent"
-                whileHover={{ scale: 1.1 }}
-              >
-                {prover.eth_balance ? 
-                  `${parseFloat(prover.eth_balance).toFixed(4)} ETH` :
-                  prover.stake_balance ?
-                  `${parseFloat(prover.stake_balance).toFixed(2)} HP` :
-                  `${earnings.toFixed(2)}`
-                }
-              </motion.span>
-            </div>
-            
-            {/* Show both ETH and HP if available */}
-            {prover.eth_balance && prover.stake_balance && (
-              <div className="flex justify-between">
-                <span className="text-gray-300 text-sm">HP Stake:</span>
-                <span className="font-bold text-purple-400">
-                  {formatBalance(prover.stake_balance, 'HP')}
-                </span>
-              </div>
-            )}
-            
-            <div className="flex justify-between">
-              <span className="text-gray-300 text-sm">Hash Rate:</span>
-              <span className="font-bold text-boundless-neon">{hashRate} H/s</span>
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-gray-300 text-sm">Orders:</span>
-              <span className="font-bold text-white">
-                {prover.total_orders || 0}
-                {prover.reputation_score && (
-                  <span className="text-xs text-gray-400 ml-1">
-                    (⭐ {prover.reputation_score.toFixed(1)})
-                  </span>
-                )}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-300 text-sm">Uptime:</span>
-              <span className="font-bold text-boundless-success">{uptime}%</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-300 text-sm">Status:</span>
-              <motion.div
-                animate={{ 
-                  scale: status === 'online' || prover.is_active_onchain ? [1, 1.1, 1] : 1 
-                }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className={`w-3 h-3 rounded-full ${
-                  status === 'online' || prover.is_active_onchain ? 'bg-emerald-400' :
-                  status === 'busy' ? 'bg-blue-400' : 
-                  status === 'maintenance' ? 'bg-yellow-400' : 'bg-red-400'
-                }`}
-              />
-            </div>
-          </div>
-        </div>
-        
-        <div className="pt-3 border-t border-gray-600/30">
-          <p className="text-xs text-gray-500 flex items-center gap-2">
-            <Clock className="w-3 h-3" />
-            Last active: {new Date(lastActive).toLocaleTimeString()}
-            {prover.is_active_onchain && (
-              <span className="text-green-400 ml-2">• On-chain verified</span>
-            )}
-          </p>
-        </div>
-      </div>
-    </motion.div>
-  )
-}
-
-// ===== OrderCard с улучшенным дизайном =====
-const OrderCard = ({ order, index }: { order: OrderData; index: number }) => (
-  <motion.div
-    initial={{ opacity: 0, x: 20 }}
-    animate={{ opacity: 1, x: 0 }}
-    transition={{ delay: index * 0.09, duration: 0.54 }}
-    whileHover={{ scale: 1.03, y: -7 }}
-    className={`
-      bg-gradient-to-br from-[#21223bb6] to-[#3b225ab8]
-      rounded-2xl p-6 border border-[#38fff6]/15 hover:border-[#38fff6]/80
-      shadow-[0_2px_32px_2px_rgba(56,255,246,0.07)]
-      hover:shadow-[0_0_32px_8px_rgba(56,255,246,0.16),0_8px_48px_12px_rgba(184,64,244,0.11)]
-      backdrop-blur-xl
-      transition-all duration-300 relative overflow-hidden group
-      after:content-[''] after:absolute after:inset-0 after:rounded-2xl
-      after:pointer-events-none after:border after:border-[#38fff6]/20 after:opacity-0
-      group-hover:after:opacity-100
-    `}
-    style={{ background: 'linear-gradient(135deg, rgba(56,255,246,0.07) 0%, rgba(184,64,244,0.08) 100%)' }}
-  >
-    <div className="absolute inset-0 bg-gradient-to-br from-boundless-accent/5 to-boundless-neon/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-    <div className="absolute top-0 left-0 w-20 h-20 bg-gradient-to-br from-boundless-accent/20 to-transparent rounded-br-3xl" />
-    
-    <div className="relative z-10">
-      <div className="flex justify-between items-start mb-4">
-        <div>
-          <h3 className="text-xl font-orbitron font-bold text-white mb-1">Order {order.id}</h3>
-          {order.priority && (
-            <span className={`text-xs px-2 py-1 rounded-full ${
-              order.priority === 'high' ? 'bg-red-500/20 text-red-400' :
-              order.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
-              'bg-green-500/20 text-green-400'
-            }`}>
-              {order.priority.toUpperCase()} PRIORITY
-            </span>
-          )}
-        </div>
-        <StatusBadge status={order.status} />
-      </div>
-      
-      <div className="space-y-3 mb-4">
-        <div className="flex justify-between items-center">
-          <span className="text-gray-300 text-sm flex items-center gap-2">
-            <DollarSign className="w-4 h-4" />
-            Reward:
-          </span>
-          <motion.span 
-            className="font-bold text-boundless-accent text-lg"
-            whileHover={{ scale: 1.1 }}
-          >
-            ${order.reward.toFixed(2)}
-          </motion.span>
-        </div>
-        
-        {order.prover && (
-          <div className="flex justify-between">
-            <span className="text-gray-300 text-sm flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              Prover:
-            </span>
-            <span className="font-bold text-boundless-neon">{order.prover}</span>
-          </div>
-        )}
-      </div>
-      
-      <div className="pt-3 border-t border-gray-600/30">
-        <p className="text-xs text-gray-500 flex items-center gap-2">
-          <Clock className="w-3 h-3" />
-          Created: {new Date(order.createdAt).toLocaleString()}
-        </p>
-      </div>
-    </div>
-  </motion.div>
-)
-
-// ===== MAIN DASHBOARD =====
-export default function Dashboard() {
-  const [provers, setProvers] = useState<ProverData[]>([])
-  const [orders, setOrders] = useState<OrderData[]>([])
-  const [loading, setLoading] = useState(true)
-  const [lastUpdated, setLastUpdated] = useState<string>('')
-  const [isDataVisible, setIsDataVisible] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [searchResults, setSearchResults] = useState<ProverData[]>([])
-  const [isSearching, setIsSearching] = useState(false)
-  
-  // Временные диапазоны с правильными типами
-  const [selectedTimeframe, setSelectedTimeframe] = useState<'1d' | '3d' | '1w'>('1d')
-  const [proverTimeframe, setProverTimeframe] = useState<'1d' | '3d' | '1w'>('1d')
-  
-  // состояние для dashboard статистики
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
-    totalEarnings: "0.00",
-    activeProvers: 0,
-    verifiedOnChain: 0,
-    totalOrdersCompleted: 0,
-    totalHashRate: 0
-  })
-  const [statsLoading, setStatsLoading] = useState(false)
-
-  // загрузка dashboard статистики С ПРАВИЛЬНЫМ API
-  const loadDashboardStats = async (timeframe = selectedTimeframe) => {
-    try {
-      setStatsLoading(true)
-      console.log(`📊 Loading dashboard stats for timeframe: ${timeframe}`)
-      
-      const cacheBuster = Date.now()
-      const response = await fetch(`/api/provers?timeframe=${timeframe}&dashboard=true&cache=false&_=${cacheBuster}`)
-      
-      console.log('📡 Response status:', response.status)
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      
-      const result = await response.json()
-      console.log('📈 Dashboard API response:', result)
-      
-      if (result && result.success === true && result.data) {
-        const stats = result.data
-        
-        const freshStats = {
-          totalEarnings: String(stats.totalEarnings || "0.00"),
-          activeProvers: Number(stats.activeProvers) || 0,
-          verifiedOnChain: Number(stats.verifiedOnChain) || 0,
-          totalOrdersCompleted: Number(stats.totalOrdersCompleted) || 0,
-          totalHashRate: Number(stats.totalHashRate) || 0,
-          avgProofTime: Number(stats.avgProofTime) || 45,
-          successRate: Number(stats.successRate) || 99.2,
-          timeframe: stats.timeframe || timeframe,
+timeframe: stats.timeframe || timeframe,
           period: stats.period,
           dataSource: stats.dataSource || result.source,
           blockRange: stats.blockRange
@@ -651,7 +104,7 @@ export default function Dashboard() {
     }
   }
 
-  // ОБНОВЛЕННАЯ функция поиска с proverTimeframe
+  // 🔥 ИСПРАВЛЕННАЯ функция поиска с правильной обработкой API ответов
   const performSearch = async (searchQuery: string) => {
     if (!searchQuery.trim()) {
       setSearchResults([])
@@ -666,7 +119,7 @@ export default function Dashboard() {
       params.append('q', searchQuery)
       params.append('blockchain', 'true')
       params.append('realdata', 'true')
-      params.append('timeframe', proverTimeframe) // Используем proverTimeframe
+      params.append('timeframe', proverTimeframe)
       params.append('limit', '10')
 
       const response = await fetch(`/api/provers?${params}`)
@@ -674,13 +127,22 @@ export default function Dashboard() {
       
       console.log(`🔍 Live search result for ${proverTimeframe}:`, result)
 
-      if (result.success || result.data) {
-        const foundProvers = Array.isArray(result.data) ? result.data : []
-        setSearchResults(foundProvers)
-        console.log(`✅ Found ${foundProvers.length} live provers via blockchain for ${proverTimeframe}`)
+      // 🔥 ИСПРАВЛЕННАЯ обработка результата поиска
+      if (result.success && result.data && Array.isArray(result.data) && result.data.length > 0) {
+        console.log(`✅ Found ${result.data.length} live provers via blockchain for ${proverTimeframe}`)
+        setSearchResults(result.data)
+      } else if (result.data && Array.isArray(result.data)) {
+        // Пустой массив - результатов нет
+        console.log(`⚠️ No provers found for "${searchQuery}" (${proverTimeframe})`)
+        setSearchResults([])
+      } else {
+        // Неожиданный формат ответа
+        console.warn('⚠️ Unexpected search response format:', result)
+        setSearchResults([])
       }
     } catch (error) {
       console.error('❌ Live search failed:', error instanceof Error ? error.message : 'Unknown search error')
+      setSearchResults([])
     } finally {
       setIsSearching(false)
     }
@@ -726,9 +188,15 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [selectedTimeframe])
 
-  // Combine regular provers with search results
+  // 🔥 ИСПРАВЛЕННАЯ обработка проверов для отображения
   const displayProvers = searchTerm ? searchResults : provers
-  const activeProvers = displayProvers.filter(p => p?.status === 'online' || p?.status === 'busy' || p?.is_active_onchain)
+  const activeProvers = displayProvers.filter(p => 
+    p?.status === 'online' || 
+    p?.status === 'busy' || 
+    p?.status === 'active' || 
+    p?.is_active_onchain ||
+    (p?.total_orders && p.total_orders > 0) // Показываем проверов с заказами
+  )
   
   // ИСПОЛЬЗУЕМ LIVE СТАТИСТИКУ ИЗ ОБНОВЛЕННОГО API
   const totalEarnings = parseFloat(dashboardStats.totalEarnings)
@@ -1079,7 +547,7 @@ export default function Dashboard() {
                     {searchResults.length > 0 ? (
                       <span className="text-green-400">
                         Found {searchResults.length} live result{searchResults.length !== 1 ? 's' : ''} for "{searchTerm}" ({proverTimeframe})
-                        {searchResults.some(p => p.source === 'direct_address_lookup') && (
+                        {searchResults.some(p => p.source === 'blockchain_verified' || p.source === 'real_prover_page_parsing') && (
                           <span className="ml-2 px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">
                             LIVE BLOCKCHAIN DATA
                           </span>
@@ -1097,6 +565,48 @@ export default function Dashboard() {
                 
                 {loading ? (
                   <LoadingSpinner />
+                ) : (
+                  <div className="space-y-4">
+                    {orders.map((order, index) => (
+                      <OrderCard key={order.id} order={order} index={index} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Help Section */}
+        <motion.div 
+          className="text-center py-8 text-gray-400"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1 }}
+        >
+          <p className="text-sm mb-2">
+            💡 <strong>Live Blockchain Integration:</strong> Select time periods above and enter Ethereum addresses (0x...) for real-time Base network data
+          </p>
+          {statsLoading && (
+            <p className="text-xs text-blue-400">
+              🔄 Updating live dashboard statistics from {dashboardStats.dataSource || 'blockchain'} for {dashboardStats.period || selectedTimeframe}...
+            </p>
+          )}
+          <p className="text-xs text-green-400 mt-2">
+            ✅ Data source: {dashboardStats.dataSource || 'boundless-api'} • Period: {dashboardStats.period || selectedTimeframe}
+            {dashboardStats.successRate && (
+              <span className="ml-2">• Success rate: {dashboardStats.successRate.toFixed(1)}%</span>
+            )}
+          </p>
+          <p className="text-xs text-purple-400 mt-1">
+            🔍 Search timeframe: {proverTimeframe === '1d' ? '1 Day' : proverTimeframe === '3d' ? '3 Days' : '1 Week'} 
+            • Dashboard timeframe: {selectedTimeframe === '1d' ? '1 Day' : selectedTimeframe === '3d' ? '3 Days' : '1 Week'}
+          </p>
+        </motion.div>
+      </div>
+    </>
+  )
+}inner />
                 ) : (
                   <div className="space-y-4">
                     {activeProvers.length > 0 ? (
@@ -1153,46 +663,587 @@ export default function Dashboard() {
                 </motion.h2>
                 
                 {loading ? (
-                  <LoadingSpinner />
-                ) : (
-                  <div className="space-y-4">
-                    {orders.map((order, index) => (
-                      <OrderCard key={order.id} order={order} index={index} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                  <LoadingSp// src/app/page.tsx — ПОЛНАЯ ВЕРСИЯ С УЛУЧШЕННЫМ ДИЗАЙНОМ BY OveR | Sci-Fi Neon Glassmorphism Dashboard 2025
+'use client'
+import React, { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Activity, TrendingUp, Zap, RefreshCw, Eye, EyeOff, BarChart3, Users,
+  Clock, DollarSign, Search, X, ExternalLink, Copy, CheckCircle, Shield
+} from 'lucide-react'
 
-        {/* Help Section */}
-        <motion.div 
-          className="text-center py-8 text-gray-400"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1 }}
-        >
-          <p className="text-sm mb-2">
-            💡 <strong>Live Blockchain Integration:</strong> Select time periods above and enter Ethereum addresses (0x...) for real-time Base network data
-          </p>
-          {statsLoading && (
-            <p className="text-xs text-blue-400">
-              🔄 Updating live dashboard statistics from {dashboardStats.dataSource || 'blockchain'} for {dashboardStats.period || selectedTimeframe}...
-            </p>
-          )}
-          <p className="text-xs text-green-400 mt-2">
-            ✅ Data source: {dashboardStats.dataSource || 'boundless-api'} • Period: {dashboardStats.period || selectedTimeframe}
-            {dashboardStats.successRate && (
-              <span className="ml-2">• Success rate: {dashboardStats.successRate.toFixed(1)}%</span>
-            )}
-          </p>
-          <p className="text-xs text-purple-400 mt-1">
-            🔍 Search timeframe: {proverTimeframe === '1d' ? '1 Day' : proverTimeframe === '3d' ? '3 Days' : '1 Week'} 
-            • Dashboard timeframe: {selectedTimeframe === '1d' ? '1 Day' : selectedTimeframe === '3d' ? '3 Days' : '1 Week'}
-          </p>
-        </motion.div>
-      </div>
-    </>
+// ===== Интерфейсы =====
+interface ProverData {
+  id: string
+  nickname: string
+  earnings_usd?: number
+  earnings?: number
+  hashRate?: number
+  hash_rate?: string
+  status: 'online' | 'busy' | 'offline' | 'maintenance' | 'active'
+  lastActive?: string
+  last_seen?: string
+  uptime?: number | string
+  gpu_model?: string
+  gpu?: string
+  location?: string
+  reputation_score?: number
+  total_orders?: number
+  successful_orders?: number
+  blockchain_address?: string
+  blockchain_verified?: boolean
+  eth_balance?: string
+  stake_balance?: string
+  regular_balance?: string
+  is_active_onchain?: boolean
+  success_rate?: string | number
+  slashes?: number
+  onchain_activity?: boolean
+  source?: string
+  last_blockchain_check?: string
+  last_activity?: string
+}
+
+interface OrderData {
+  id: string
+  reward: number
+  prover?: string
+  status: 'processing' | 'pending' | 'completed' | 'failed'
+  createdAt: string
+  priority?: 'high' | 'medium' | 'low'
+}
+
+interface DashboardStats {
+  totalEarnings: string
+  activeProvers: number
+  verifiedOnChain: number
+  totalOrdersCompleted: number
+  totalHashRate: number
+  avgProofTime?: number
+  successRate?: number
+  timeframe?: string
+  period?: string
+  dataSource?: string
+  blockRange?: number
+}
+
+const debugDashboardAPI = async () => {
+  console.log('🔍 === API DEBUGGING START ===')
+  
+  const endpoints = [
+    '/api/provers?dashboard=true&timeframe=1d',
+    '/api/provers?timeframe=1d&dashboard=true', 
+    '/api/boundless-proxy'
+  ]
+  
+  for (const endpoint of endpoints) {
+    try {
+      console.log(`🧪 Testing: ${endpoint}`)
+      const response = await fetch(endpoint)
+      console.log(`📡 Status: ${response.status}`)
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log(`📊 Response structure:`, {
+          hasSuccess: 'success' in data,
+          hasData: 'data' in data,
+          keys: Object.keys(data),
+          sample: data
+        })
+      } else {
+        const errorText = await response.text()
+        console.log(`❌ Error: ${errorText}`)
+      }
+    } catch (error) {
+      console.log(`🚫 Failed: ${error}`)
+    }
+  }
+  
+  console.log('🔍 === API DEBUGGING END ===')
+}
+
+// ===== "By OveR" Signature =====
+const OverSignature = () => (
+  <div className="fixed top-5 right-8 z-50 select-none pointer-events-none">
+    <span
+      className="font-orbitron text-xs md:text-sm font-bold uppercase bg-gradient-to-r from-[#38fff6] via-[#5e5cfc] to-[#b840f4] bg-clip-text text-transparent drop-shadow-[0_0_12px_#38fff6bb] tracking-wider opacity-90"
+      style={{
+        textShadow: '0 0 8px #38fff6cc, 0 0 24px #b840f488'
+      }}
+    >
+      By OveR
+    </span>
+  </div>
+)
+
+// ===== StatusBadge =====
+const StatusBadge = ({ status }: { status: string }) => {
+  const getStatusConfig = () => {
+    switch (status) {
+      case 'online': return { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/50', glow: 'shadow-emerald-500/25' }
+      case 'active': return { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/50', glow: 'shadow-emerald-500/25' }
+      case 'busy': return { bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/50', glow: 'shadow-blue-500/25' }
+      case 'offline': return { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/50', glow: 'shadow-red-500/25' }
+      case 'inactive': return { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/50', glow: 'shadow-red-500/25' }
+      case 'maintenance': return { bg: 'bg-yellow-500/20', text: 'text-yellow-400', border: 'border-yellow-500/50', glow: 'shadow-yellow-500/25' }
+      case 'processing': return { bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/50', glow: 'shadow-blue-500/25' }
+      case 'pending': return { bg: 'bg-yellow-500/20', text: 'text-yellow-400', border: 'border-yellow-500/50', glow: 'shadow-yellow-500/25' }
+      case 'completed': return { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/50', glow: 'shadow-emerald-500/25' }
+      case 'failed': return { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/50', glow: 'shadow-red-500/25' }
+      default: return { bg: 'bg-gray-500/20', text: 'text-gray-400', border: 'border-gray-500/50', glow: 'shadow-gray-500/25' }
+    }
+  }
+  const config = getStatusConfig()
+  return (
+    <motion.span
+      className={`px-3 py-1.5 rounded-full text-xs font-bold border ${config.bg} ${config.text} ${config.border} ${config.glow} shadow-lg backdrop-blur-sm`}
+      whileHover={{ scale: 1.07 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      style={{ boxShadow: '0 0 10px 1px #38fff6bb, 0 0 2px 0px #b840f455' }}
+    >
+      <span className="flex items-center gap-1">
+        <motion.div
+          className={`w-1.5 h-1.5 rounded-full ${config.text.replace('text-', 'bg-')}`}
+          animate={{
+            scale: status === 'processing' || status === 'busy' || status === 'active' ? [1, 1.3, 1] : 1,
+            opacity: status === 'offline' || status === 'inactive' ? [1, 0.3, 1] : 1
+          }}
+          transition={{ duration: 2, repeat: Infinity }}
+        />
+        {status.toUpperCase()}
+      </span>
+    </motion.span>
   )
 }
+
+// ===== LoadingSpinner =====
+const LoadingSpinner = () => (
+  <motion.div className="flex items-center justify-center p-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <motion.div
+      animate={{ rotate: 360 }}
+      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+      className="rounded-full h-8 w-8 border-2 border-[#38fff6] border-t-transparent shadow-[0_0_16px_2px_#38fff6bb]"
+    />
+    <span className="ml-3 text-gray-400 font-medium">Loading real-time blockchain data...</span>
+  </motion.div>
+)
+
+// ===== StatCard =====
+const StatCard = ({
+  title, value, subtitle, icon: Icon, gradient, delay = 0, isLoading = false
+}: {
+  title: string
+  value: string
+  subtitle: string
+  icon: any
+  gradient: string
+  delay?: number
+  isLoading?: boolean
+}) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay, duration: 0.55 }}
+    whileHover={{ scale: 1.028, y: -8 }}
+    className={`
+      ${gradient}
+      rounded-2xl p-6 border border-white/15
+      shadow-[0_2px_24px_0px_#38fff6aa,0_0px_64px_8px_#b840f444]
+      backdrop-blur-xl
+      relative overflow-hidden group
+      after:content-[''] after:absolute after:inset-0 after:rounded-2xl
+      after:border after:border-[#38fff6]/30 after:pointer-events-none
+      after:opacity-0 group-hover:after:opacity-100
+      transition-all duration-300
+    `}
+    style={{ background: 'linear-gradient(135deg, rgba(56,255,246,0.08) 0%, rgba(90,60,255,0.13) 100%)' }}
+  >
+    <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+    <div className="relative z-10">
+      <div className="flex items-center justify-between mb-4">
+        <motion.div whileHover={{ rotate: 360 }} transition={{ duration: 0.6 }}>
+          <Icon className="w-8 h-8 text-white/80 drop-shadow-[0_2px_12px_#38fff6bb]" />
+        </motion.div>
+        <motion.div
+          animate={{ scale: [1, 1.12, 1] }}
+          transition={{ duration: 2.7, repeat: Infinity }}
+          className="w-2 h-2 rounded-full bg-white/60"
+        />
+      </div>
+      <h3 className="text-lg font-orbitron font-bold text-white/90 mb-2">{title}</h3>
+      <motion.p
+        className="text-3xl font-black text-white mb-1"
+        key={value}
+        initial={{ scale: 1.2, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+      >
+        {isLoading ? (
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            className="w-8 h-8 border-2 border-white border-t-transparent rounded-full inline-block"
+          />
+        ) : value}
+      </motion.p>
+      <p className="text-sm text-white/70">{subtitle}</p>
+    </div>
+  </motion.div>
+)
+
+// ===== ProverCard с улучшенным дизайном =====
+const ProverCard = ({ prover, index }: { prover: ProverData; index: number }) => {
+  const [copiedAddress, setCopiedAddress] = useState('')
+  
+  // 🔥 ИСПРАВЛЕННАЯ ОБРАБОТКА ПОЛЕЙ ИЗ API
+  const nickname = prover?.nickname || 'Unknown Prover'
+  const gpu = prover?.gpu_model || prover?.gpu || 'Unknown GPU'
+  const location = prover?.location || 'Unknown Location'
+  const earnings = prover?.earnings_usd || prover?.earnings || 0
+  
+  // ИСПРАВЛЕННОЕ извлечение hash rate - учитываем разные форматы из API
+  const hashRateValue = (() => {
+    if (prover?.hash_rate) {
+      // Если hash_rate - строка типа "102 H/s", извлекаем число
+      const match = prover.hash_rate.toString().match(/(\d+(?:\.\d+)?)/);
+      return match ? parseFloat(match[1]) : 0;
+    }
+    return prover?.hashRate || 0;
+  })();
+  
+  // ИСПРАВЛЕННОЕ извлечение uptime - учитываем разные форматы
+  const uptimeValue = (() => {
+    if (prover?.uptime) {
+      if (typeof prover.uptime === 'string') {
+        // Если uptime - строка типа "97%", извлекаем число
+        const match = prover.uptime.match(/(\d+(?:\.\d+)?)/);
+        return match ? parseFloat(match[1]) : 0;
+      }
+      return prover.uptime;
+    }
+    return 0;
+  })();
+  
+  const lastActive = prover?.lastActive || prover?.last_seen || new Date().toISOString()
+  const status = prover?.status || 'offline'
+  const blockchainVerified = prover?.blockchain_verified || false
+  const blockchainAddress = prover?.blockchain_address
+
+  const copyAddress = async (address: string) => {
+    try {
+      await navigator.clipboard.writeText(address)
+      setCopiedAddress(address)
+      setTimeout(() => setCopiedAddress(''), 2000)
+    } catch (err) {
+      console.error('Failed to copy address:', err)
+    }
+  }
+
+  const formatBalance = (balance?: string, symbol: string = 'ETH') => {
+    if (!balance) return '0.000'
+    const num = parseFloat(balance)
+    return `${num.toFixed(6)} ${symbol}`
+  }
+
+  const getStatusText = () => {
+    if (prover.blockchain_verified && prover.is_active_onchain) return 'ACTIVE ON-CHAIN'
+    if (status === 'online' || status === 'active') return 'ONLINE'
+    if (status === 'busy') return 'BUSY'
+    if (status === 'maintenance') return 'MAINTENANCE'
+    return 'OFFLINE'
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.09, duration: 0.54 }}
+      whileHover={{ scale: 1.045, y: -9 }}
+      className={`
+        bg-gradient-to-br from-[#151828d0] via-[#1e2233cf] to-[#191e2ebf]
+        rounded-2xl p-6 border border-[#38fff6]/20 hover:border-[#38fff6]/80
+        shadow-[0_2px_32px_2px_rgba(56,255,246,0.10)]
+        hover:shadow-[0_0_32px_8px_rgba(56,255,246,0.23),0_8px_48px_12px_rgba(84,67,255,0.08)]
+        backdrop-blur-2xl
+        transition-all duration-300 relative overflow-hidden group
+        after:content-[''] after:absolute after:inset-0 after:rounded-2xl
+        after:pointer-events-none after:border after:border-[#38fff6]/30 after:opacity-0
+        group-hover:after:opacity-100
+      `}
+      style={{ background: 'linear-gradient(135deg, rgba(56,255,246,0.10) 0%, rgba(184,64,244,0.10) 100%)' }}
+    >
+      <div className="absolute inset-0 bg-gradient-to-br from-boundless-accent/5 to-boundless-neon/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-boundless-neon/20 to-transparent rounded-bl-3xl" />
+      
+      <div className="relative z-10">
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-xl font-orbitron font-bold text-white">{nickname}</h3>
+              {blockchainVerified && (
+                <motion.span 
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30"
+                  whileHover={{ scale: 1.05 }}
+                >
+                  <Shield className="w-3 h-3" />
+                  VERIFIED
+                </motion.span>
+              )}
+              {prover.source && (
+                <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                  {prover.source.replace('_', ' ').toUpperCase()}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-400">{gpu} • {location}</p>
+            
+            {/* Blockchain Address */}
+            {blockchainAddress && (
+              <div className="flex items-center gap-2 mt-2">
+                <code className="text-xs text-gray-500">{blockchainAddress.slice(0, 10)}...</code>
+                <button
+                  onClick={() => copyAddress(blockchainAddress)}
+                  className="text-gray-500 hover:text-boundless-accent transition-colors"
+                >
+                  {copiedAddress === blockchainAddress ? (
+                    <CheckCircle className="w-3 h-3 text-green-500" />
+                  ) : (
+                    <Copy className="w-3 h-3" />
+                  )}
+                </button>
+                <a
+                  href={`https://basescan.org/address/${blockchainAddress}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-500 hover:text-boundless-accent transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            )}
+          </div>
+          <StatusBadge status={getStatusText().toLowerCase().replace(/[^a-z]/g, '')} />
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-300 text-sm">
+                {prover.regular_balance || prover.eth_balance || prover.stake_balance ? 'Balance:' : 'Earnings:'}
+              </span>
+              <motion.span 
+                className="font-bold text-boundless-accent"
+                whileHover={{ scale: 1.1 }}
+              >
+                {prover.regular_balance ? 
+                  `${parseFloat(prover.regular_balance).toFixed(6)} ETH` :
+                  prover.eth_balance ? 
+                  `${parseFloat(prover.eth_balance).toFixed(6)} ETH` :
+                  prover.stake_balance ?
+                  `${parseFloat(prover.stake_balance).toFixed(8)} HP` :
+                  `$${earnings.toFixed(2)}`
+                }
+              </motion.span>
+            </div>
+            
+            {/* Show both ETH and HP if available */}
+            {(prover.regular_balance || prover.eth_balance) && prover.stake_balance && (
+              <div className="flex justify-between">
+                <span className="text-gray-300 text-sm">HP Stake:</span>
+                <span className="font-bold text-purple-400">
+                  {formatBalance(prover.stake_balance, 'HP')}
+                </span>
+              </div>
+            )}
+            
+            <div className="flex justify-between">
+              <span className="text-gray-300 text-sm">Hash Rate:</span>
+              <span className="font-bold text-boundless-neon">
+                {hashRateValue > 0 ? `${hashRateValue.toFixed(1)} ${hashRateValue > 1000 ? 'KH/s' : 'H/s'}` : '0 H/s'}
+              </span>
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-300 text-sm">Orders:</span>
+              <span className="font-bold text-white">
+                {prover.total_orders || 0}
+                {prover.reputation_score && (
+                  <span className="text-xs text-gray-400 ml-1">
+                    (⭐ {prover.reputation_score.toFixed(1)})
+                  </span>
+                )}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-300 text-sm">Uptime:</span>
+              <span className="font-bold text-boundless-success">
+                {uptimeValue > 0 ? `${uptimeValue.toFixed(1)}%` : '0%'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-300 text-sm">Status:</span>
+              <motion.div
+                animate={{ 
+                  scale: status === 'online' || status === 'active' || prover.is_active_onchain ? [1, 1.1, 1] : 1 
+                }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className={`w-3 h-3 rounded-full ${
+                  status === 'online' || status === 'active' || prover.is_active_onchain ? 'bg-emerald-400' :
+                  status === 'busy' ? 'bg-blue-400' : 
+                  status === 'maintenance' ? 'bg-yellow-400' : 'bg-red-400'
+                }`}
+              />
+            </div>
+          </div>
+        </div>
+        
+        <div className="pt-3 border-t border-gray-600/30">
+          <p className="text-xs text-gray-500 flex items-center gap-2">
+            <Clock className="w-3 h-3" />
+            Last active: {new Date(lastActive).toLocaleTimeString()}
+            {prover.is_active_onchain && (
+              <span className="text-green-400 ml-2">• On-chain verified</span>
+            )}
+            {prover.last_activity && (
+              <span className="text-blue-400 ml-2">• {prover.last_activity}</span>
+            )}
+          </p>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+// ===== OrderCard с улучшенным дизайном =====
+const OrderCard = ({ order, index }: { order: OrderData; index: number }) => (
+  <motion.div
+    initial={{ opacity: 0, x: 20 }}
+    animate={{ opacity: 1, x: 0 }}
+    transition={{ delay: index * 0.09, duration: 0.54 }}
+    whileHover={{ scale: 1.03, y: -7 }}
+    className={`
+      bg-gradient-to-br from-[#21223bb6] to-[#3b225ab8]
+      rounded-2xl p-6 border border-[#38fff6]/15 hover:border-[#38fff6]/80
+      shadow-[0_2px_32px_2px_rgba(56,255,246,0.07)]
+      hover:shadow-[0_0_32px_8px_rgba(56,255,246,0.16),0_8px_48px_12px_rgba(184,64,244,0.11)]
+      backdrop-blur-xl
+      transition-all duration-300 relative overflow-hidden group
+      after:content-[''] after:absolute after:inset-0 after:rounded-2xl
+      after:pointer-events-none after:border after:border-[#38fff6]/20 after:opacity-0
+      group-hover:after:opacity-100
+    `}
+    style={{ background: 'linear-gradient(135deg, rgba(56,255,246,0.07) 0%, rgba(184,64,244,0.08) 100%)' }}
+  >
+    <div className="absolute inset-0 bg-gradient-to-br from-boundless-accent/5 to-boundless-neon/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+    <div className="absolute top-0 left-0 w-20 h-20 bg-gradient-to-br from-boundless-accent/20 to-transparent rounded-br-3xl" />
+    
+    <div className="relative z-10">
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <h3 className="text-xl font-orbitron font-bold text-white mb-1">Order {order.id}</h3>
+          {order.priority && (
+            <span className={`text-xs px-2 py-1 rounded-full ${
+              order.priority === 'high' ? 'bg-red-500/20 text-red-400' :
+              order.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+              'bg-green-500/20 text-green-400'
+            }`}>
+              {order.priority.toUpperCase()} PRIORITY
+            </span>
+          )}
+        </div>
+        <StatusBadge status={order.status} />
+      </div>
+      
+      <div className="space-y-3 mb-4">
+        <div className="flex justify-between items-center">
+          <span className="text-gray-300 text-sm flex items-center gap-2">
+            <DollarSign className="w-4 h-4" />
+            Reward:
+          </span>
+          <motion.span 
+            className="font-bold text-boundless-accent text-lg"
+            whileHover={{ scale: 1.1 }}
+          >
+            ${order.reward.toFixed(2)}
+          </motion.span>
+        </div>
+        
+        {order.prover && (
+          <div className="flex justify-between">
+            <span className="text-gray-300 text-sm flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Prover:
+            </span>
+            <span className="font-bold text-boundless-neon">{order.prover}</span>
+          </div>
+        )}
+      </div>
+      
+      <div className="pt-3 border-t border-gray-600/30">
+        <p className="text-xs text-gray-500 flex items-center gap-2">
+          <Clock className="w-3 h-3" />
+          Created: {new Date(order.createdAt).toLocaleString()}
+        </p>
+      </div>
+    </div>
+  </motion.div>
+)
+
+// ===== MAIN DASHBOARD =====
+export default function Dashboard() {
+  const [provers, setProvers] = useState<ProverData[]>([])
+  const [orders, setOrders] = useState<OrderData[]>([])
+  const [loading, setLoading] = useState(true)
+  const [lastUpdated, setLastUpdated] = useState<string>('')
+  const [isDataVisible, setIsDataVisible] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [searchResults, setSearchResults] = useState<ProverData[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  
+  // Временные диапазоны с правильными типами
+  const [selectedTimeframe, setSelectedTimeframe] = useState<'1d' | '3d' | '1w'>('1d')
+  const [proverTimeframe, setProverTimeframe] = useState<'1d' | '3d' | '1w'>('1d')
+  
+  // состояние для dashboard статистики
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+    totalEarnings: "0.00",
+    activeProvers: 0,
+    verifiedOnChain: 0,
+    totalOrdersCompleted: 0,
+    totalHashRate: 0
+  })
+  const [statsLoading, setStatsLoading] = useState(false)
+
+  // загрузка dashboard статистики С ПРАВИЛЬНЫМ API
+  const loadDashboardStats = async (timeframe = selectedTimeframe) => {
+    try {
+      setStatsLoading(true)
+      console.log(`📊 Loading dashboard stats for timeframe: ${timeframe}`)
+      
+      const cacheBuster = Date.now()
+      const response = await fetch(`/api/provers?timeframe=${timeframe}&dashboard=true&cache=false&_=${cacheBuster}`)
+      
+      console.log('📡 Response status:', response.status)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      console.log('📈 Dashboard API response:', result)
+      
+      if (result && result.success === true && result.data) {
+        const stats = result.data
+        
+        const freshStats = {
+          totalEarnings: String(stats.totalEarnings || "0.00"),
+          activeProvers: Number(stats.activeProvers) || 0,
+          verifiedOnChain: Number(stats.verifiedOnChain) || 0,
+          totalOrdersCompleted: Number(stats.totalOrdersCompleted) || 0,
+          totalHashRate: Number(stats.totalHashRate) || 0,
+          avgProofTime: Number(stats.avgProofTime) || 45,
+          successRate: Number(stats.successRate) || 99.2,
+          timeframe
