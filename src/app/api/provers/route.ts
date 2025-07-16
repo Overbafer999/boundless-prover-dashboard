@@ -534,57 +534,87 @@ async function parseProverPage(address: string, timeframe: string = '1w') {
     }
     
     // ✅ УЛУЧШЕННЫЙ ПОИСК СТРОКИ С ПРУВЕРОМ
-    const findProverRow = (): string | null => {
-      // Ищем точную строку таблицы
-      const tableRowPattern = new RegExp(
-        `<tr[^>]*>([\\s\\S]*?${searchAddress.slice(0, 10)}[\\s\\S]*?)</tr>`,
-        'i'
-      );
-      
-      let rowMatch = html.match(tableRowPattern);
-      
-      if (rowMatch) {
-        console.log(`🎯 [DEBUG] Found prover row via regex`);
-        return rowMatch[1];
-      }
-      
-      // Альтернативный поиск - по индексу
-      const addressIndex = html.toLowerCase().indexOf(searchAddress);
-      if (addressIndex !== -1) {
-        const beforeAddress = html.substring(0, addressIndex);
-        const afterAddress = html.substring(addressIndex);
-        
-        const lastTrStart = beforeAddress.lastIndexOf('<tr');
-        const nextTrEnd = afterAddress.indexOf('</tr>') + 5;
-        
-        if (lastTrStart !== -1 && nextTrEnd !== -1) {
-          const fullRow = html.substring(lastTrStart, addressIndex + nextTrEnd);
-          console.log(`🎯 [DEBUG] Found prover row via index search`);
-          return fullRow;
-        }
-      }
-      
-      // Поиск по короткому адресу
-      const shortAddressIndex = html.indexOf(shortAddress);
-      if (shortAddressIndex !== -1) {
-        const beforeShort = html.substring(0, shortAddressIndex);
-        const afterShort = html.substring(shortAddressIndex);
-        
-        const lastTrStart = beforeShort.lastIndexOf('<tr');
-        const nextTrEnd = afterShort.indexOf('</tr>') + 5;
-        
-        if (lastTrStart !== -1 && nextTrEnd !== -1) {
-          const fullRow = html.substring(lastTrStart, shortAddressIndex + nextTrEnd);
-          console.log(`🎯 [DEBUG] Found prover row via short address`);
-          return fullRow;
-        }
-      }
-      
-      return null;
-    };
+   const findProverRow = (): string | null => {
+  console.log(`🔍 [DEBUG] Starting row extraction...`);
+  
+  // МЕТОД 1: Ищем по полному адресу
+  const fullAddressIndex = html.toLowerCase().indexOf(searchAddress);
+  if (fullAddressIndex !== -1) {
+    console.log(`🎯 [DEBUG] Found full address at index ${fullAddressIndex}`);
     
-    // ✅ ПОЛУЧАЕМ СТРОКУ С ДАННЫМИ ПРУВЕРА
-    const proverRowData: string | null = findProverRow();
+    // Находим начало и конец строки таблицы
+    const beforeAddress = html.substring(0, fullAddressIndex);
+    const afterAddress = html.substring(fullAddressIndex);
+    
+    // Ищем <tr> перед адресом
+    const trStartIndex = beforeAddress.lastIndexOf('<tr');
+    // Ищем </tr> после адреса  
+    const trEndIndex = afterAddress.indexOf('</tr>');
+    
+    if (trStartIndex !== -1 && trEndIndex !== -1) {
+      const rowStart = trStartIndex;
+      const rowEnd = fullAddressIndex + trEndIndex + 5; // +5 для '</tr>'
+      const fullRow = html.substring(rowStart, rowEnd);
+      
+      console.log(`✅ [DEBUG] Extracted row by full address (${fullRow.length} chars)`);
+      console.log(`🔍 [DEBUG] Row preview:`, fullRow.substring(0, 200));
+      return fullRow;
+    }
+  }
+  
+  // МЕТОД 2: Ищем по короткому адресу
+  const shortAddressIndex = html.indexOf(shortAddress);
+  if (shortAddressIndex !== -1) {
+    console.log(`🎯 [DEBUG] Found short address at index ${shortAddressIndex}`);
+    
+    const beforeShort = html.substring(0, shortAddressIndex);
+    const afterShort = html.substring(shortAddressIndex);
+    
+    const trStartIndex = beforeShort.lastIndexOf('<tr');
+    const trEndIndex = afterShort.indexOf('</tr>');
+    
+    if (trStartIndex !== -1 && trEndIndex !== -1) {
+      const rowStart = trStartIndex;
+      const rowEnd = shortAddressIndex + trEndIndex + 5;
+      const fullRow = html.substring(rowStart, rowEnd);
+      
+      console.log(`✅ [DEBUG] Extracted row by short address (${fullRow.length} chars)`);
+      console.log(`🔍 [DEBUG] Row preview:`, fullRow.substring(0, 200));
+      return fullRow;
+    }
+  }
+  
+  // МЕТОД 3: Поиск через regex (более гибкий)
+  const addressPattern = new RegExp(`<tr[^>]*>([\\s\\S]*?${searchAddress.slice(0, 12)}[\\s\\S]*?)</tr>`, 'i');
+  const regexMatch = html.match(addressPattern);
+  
+  if (regexMatch && regexMatch[0]) {
+    console.log(`✅ [DEBUG] Extracted row by regex (${regexMatch[0].length} chars)`);
+    console.log(`🔍 [DEBUG] Row preview:`, regexMatch[0].substring(0, 200));
+    return regexMatch[0];
+  }
+  
+  // МЕТОД 4: Ищем строку с числами (orders) рядом с адресом
+  const lines = html.split('\n');
+  let foundLine = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.includes(searchAddress.slice(0, 12)) || line.includes(shortAddress)) {
+      // Собираем несколько строк вокруг найденной
+      const startLine = Math.max(0, i - 2);
+      const endLine = Math.min(lines.length - 1, i + 2);
+      foundLine = lines.slice(startLine, endLine).join('\n');
+      
+      console.log(`✅ [DEBUG] Found line context (method 4)`);
+      console.log(`🔍 [DEBUG] Context:`, foundLine.substring(0, 300));
+      return foundLine;
+    }
+  }
+  
+  console.log(`❌ [DEBUG] All row extraction methods failed`);
+  return null;
+};
     
     if (!proverRowData) {
       console.log(`❌ [DEBUG] Could not extract row data for ${address}`);
