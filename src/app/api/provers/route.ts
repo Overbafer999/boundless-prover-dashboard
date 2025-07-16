@@ -597,22 +597,31 @@ async function parseProverPage(address: string, timeframe: string = '1w') {
     
     console.log(`🎯 [DEBUG] Found prover row data (first 200 chars):`, proverRowData.substring(0, 200));
     
-    // ✅ НОВАЯ ФУНКЦИЯ для извлечения данных из ячеек таблицы
+    // ✅ УПРОЩЕННАЯ ФУНКЦИЯ для извлечения данных из ячеек таблицы
     const extractFromTableCell = (cellIndex: number, patterns: string[], fieldName: string): string | null => {
       console.log(`🔍 [DEBUG] Extracting ${fieldName} from cell ${cellIndex}`);
       
-      // Разбиваем строку на ячейки
-      const cells = proverRowData.match(/<td[^>]*>.*?<\/td>/g);
+      // Простое разбиение по ячейкам
+      const cellRegex = /<td[^>]*>(.*?)<\/td>/g;
+      const cells = [];
+      let match;
       
-      if (cells && cells[cellIndex]) {
-        const cellContent = cells[cellIndex];
-        console.log(`📋 [DEBUG] Cell ${cellIndex} content:`, cellContent.substring(0, 100));
+      while ((match = cellRegex.exec(proverRowData)) !== null) {
+        cells.push(match[1]);
+      }
+      
+      console.log(`📋 [DEBUG] Found ${cells.length} cells total`);
+      
+      if (cells[cellIndex]) {
+        // Убираем HTML теги и извлекаем текст
+        const cellText = cells[cellIndex].replace(/<[^>]*>/g, '').trim();
+        console.log(`📋 [DEBUG] Cell ${cellIndex} clean text: "${cellText}"`);
         
-        // Пробуем каждый паттерн
+        // Ищем числа в тексте ячейки
         for (const pattern of patterns) {
           try {
             const regex = new RegExp(pattern, 'i');
-            const match = cellContent.match(regex);
+            const match = cellText.match(regex);
             if (match && match[1]) {
               console.log(`✅ [DEBUG] ${fieldName} found: ${match[1]} (pattern: ${pattern})`);
               return match[1];
@@ -621,65 +630,49 @@ async function parseProverPage(address: string, timeframe: string = '1w') {
             console.log(`❌ [DEBUG] ${fieldName} pattern error:`, pattern, err);
           }
         }
-      }
-      
-      // Fallback - ищем по всей строке
-      console.log(`⚠️ [DEBUG] ${fieldName} not found in cell ${cellIndex}, trying full row`);
-      for (const pattern of patterns) {
-        try {
-          const regex = new RegExp(pattern, 'i');
-          const match = proverRowData.match(regex);
-          if (match && match[1]) {
-            console.log(`✅ [DEBUG] ${fieldName} found in full row: ${match[1]}`);
-            return match[1];
-          }
-        } catch (err) {
-          console.log(`❌ [DEBUG] ${fieldName} full row pattern error:`, pattern, err);
+        
+        // Fallback - любое число в ячейке
+        const numberMatch = cellText.match(/(\d+)/);
+        if (numberMatch) {
+          console.log(`⚠️ [DEBUG] ${fieldName} fallback number: ${numberMatch[1]}`);
+          return numberMatch[1];
         }
       }
       
-      console.log(`❌ [DEBUG] ${fieldName} not found anywhere`);
+      console.log(`❌ [DEBUG] ${fieldName} not found in cell ${cellIndex}`);
       return null;
     };
     
-    // ✅ ORDERS TAKEN - ЯЧЕЙКА 2 (558, 821, 989)
+    // ✅ УПРОЩЕННЫЕ ПАТТЕРНЫ для данных в ячейках таблицы
+    
+    // Orders taken - ячейка 2 (989)
     const ordersTaken = extractFromTableCell(2, [
-      '>(\\d{3,4})<',                           // Простое число в ячейке
-      '<td[^>]*>(\\d{3,4})<\\/td>',            // Полная ячейка с числом
-      '\\s+(\\d{3,4})\\s+',                     // Число с пробелами
-      '(\\d{3,4})',                            // Любое 3-4 значное число
+      '(\\d{3,4})',                            // 3-4 значное число (989)
+      '(\\d+)',                                // Любое число
     ], 'Orders Taken');
 
-    // ✅ ORDER EARNINGS ETH - ЯЧЕЙКА 4 (0.00000001 ETH)
+    // Order earnings ETH - ячейка 4 (0.00000001 ETH)
     const orderEarningsETH = extractFromTableCell(4, [
-      '(0\\.\\d{8})\\s*ETH',                   // ETH значения с 8 знаками
-      '>(0\\.\\d+)<[\\s\\S]*?ETH',             // В тегах перед ETH
-      '(0\\.0{7,}\\d+)',                       // Очень маленькие числа
-      '(0\\.\\d+)',                            // Любые десятичные 0.X
+      '(0\\.\\d+)',                            // Десятичное число 0.X
+      '(\\d+\\.\\d+)',                         // Любое десятичное число
     ], 'Order Earnings ETH');
 
-    // ✅ ORDER EARNINGS USDC - ЯЧЕЙКА 5 (0.25000000 USDC)
+    // Order earnings USDC - ячейка 5 (0.25000000 USDC)
     const orderEarningsUSDC = extractFromTableCell(5, [
-      '(\\d+\\.\\d{8})\\s*USDC',               // USDC значения с 8 знаками
-      '>(\\d+\\.\\d+)<[\\s\\S]*?USDC',         // В тегах перед USDC
-      '(0\\.25000000)',                         // Точное значение 0.25
-      '(\\d+\\.\\d{4,})',                      // Числа с 4+ знаками после точки
+      '(\\d+\\.\\d+)',                         // Десятичное число
+      '(0\\.25\\d*)',                          // Значение начинающееся с 0.25
     ], 'Order Earnings USDC');
 
-    // ✅ PEAK MHZ - ЯЧЕЙКА 7 (1.776159 MHz)
+    // Peak MHz - ячейка 7 (1.776159 MHz)
     const peakMHz = extractFromTableCell(7, [
-      '(\\d+\\.\\d{6})\\s*MHz',                // MHz с 6 знаками (1.776159)
-      '>(\\d+\\.\\d+)<[\\s\\S]*?MHz',          // В тегах перед MHz
-      '(1\\.\\d{6})',                          // Числа начинающиеся с 1.
-      '(\\d+\\.\\d{3,})',                      // Числа с 3+ знаками после точки
+      '(\\d+\\.\\d+)',                         // Десятичное число (1.776159)
+      '(\\d+)',                                // Целое число fallback
     ], 'Peak MHz');
 
-    // ✅ SUCCESS RATE - ЯЧЕЙКА 8 (96.8%, 97.7%, 98.1%)
+    // Success rate - ячейка 8 (98.1%)
     const successRate = extractFromTableCell(8, [
-      '(\\d{2}\\.\\d+)%',                      // Проценты 96.8%
-      '>(\\d{2}\\.\\d+)<[\\s\\S]*?%',          // В тегах перед %
-      '(9[0-9]\\.\\d+)',                       // Числа 90-99.X%
-      '(\\d{2}\\.\\d)',                        // Двузначные с одним знаком
+      '(\\d{2}\\.\\d+)',                       // Проценты 98.1
+      '(\\d{2,3})',                            // Целое число 98
     ], 'Success Rate');
     
     // ✅ ПАРСИНГ И КОНВЕРТАЦИЯ значений
