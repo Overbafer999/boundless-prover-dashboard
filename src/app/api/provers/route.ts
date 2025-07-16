@@ -345,7 +345,7 @@ async function parseProverPage(address: string, timeframe: string = '1w') {
       success_rate: 0,
       source: 'parsing_error',
       rawData: {
-  error: error instanceof Error ? error.message : String(error),
+  error: (error as Error)?.message || 'Unknown error' ,
   address: address,
   timeframe: timeframe
 }
@@ -365,7 +365,7 @@ async function parseProverPage(address: string, timeframe: string = '1w') {
         earningsUsd: 0,
         timeframe,
         source: 'parsing_error_debug',
-        error: error instanceof Error ? error.message : String(error)
+       error: (error as Error)?.message || 'Unknown error' ,
       }
     };
   }
