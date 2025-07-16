@@ -615,6 +615,8 @@ async function parseProverPage(address: string, timeframe: string = '1w') {
   console.log(`❌ [DEBUG] All row extraction methods failed`);
   return null;
 };
+
+    const proverRowData: string | null = findProverRow();
     
     if (!proverRowData) {
       console.log(`❌ [DEBUG] Could not extract row data for ${address}`);
