@@ -130,40 +130,42 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
           const cellHtml = addressCell.html();
           console.log(`🔍 Row ${index} address cell HTML:`, cellHtml);
           
-          // Ищем ПОЛНЫЙ адрес в title атрибуте или href
-          const titleElement = addressCell.find('[title]');
-          const linkElement = addressCell.find('a[href]');
+          // Ищем ПОЛНЫЙ адрес в span title атрибуте
+          const spanWithTitle = addressCell.find('span[title]');
           const allText = addressCell.text().trim();
           
           let fullAddress = '';
           
-          // Метод 1: title атрибут
-          if (titleElement.length > 0) {
-            fullAddress = titleElement.attr('title') || '';
-            console.log(`   Method 1 (title): "${fullAddress}"`);
+          // Метод 1: span title атрибут (ОСНОВНОЙ)
+          if (spanWithTitle.length > 0) {
+            fullAddress = spanWithTitle.attr('title') || '';
+            console.log(`   Method 1 (span title): "${fullAddress}"`);
           }
           
-          // Метод 2: href
-          if (!fullAddress && linkElement.length > 0) {
-            const href = linkElement.attr('href') || '';
-            console.log(`   Method 2 (href): "${href}"`);
-            const addressMatch = href.match(/\/provers\/(0x[a-fA-F0-9]{40})/);
-            if (addressMatch) {
-              fullAddress = addressMatch[1];
-              console.log(`   Method 2 extracted: "${fullAddress}"`);
-            }
-          }
-          
-          // Метод 3: прямой поиск в тексте
+          // Метод 2: любой title атрибут
           if (!fullAddress) {
-            const textMatch = allText.match(/(0x[a-fA-F0-9]{40})/);
-            if (textMatch) {
-              fullAddress = textMatch[1];
-              console.log(`   Method 3 (text): "${fullAddress}"`);
+            const anyTitleElement = addressCell.find('[title]');
+            if (anyTitleElement.length > 0) {
+              fullAddress = anyTitleElement.attr('title') || '';
+              console.log(`   Method 2 (any title): "${fullAddress}"`);
             }
           }
           
-          // Метод 4: поиск в HTML
+          // Метод 3: href
+          if (!fullAddress) {
+            const linkElement = addressCell.find('a[href]');
+            if (linkElement.length > 0) {
+              const href = linkElement.attr('href') || '';
+              console.log(`   Method 3 (href): "${href}"`);
+              const addressMatch = href.match(/\/provers\/(0x[a-fA-F0-9]{40})/);
+              if (addressMatch) {
+                fullAddress = addressMatch[1];
+                console.log(`   Method 3 extracted: "${fullAddress}"`);
+              }
+            }
+          }
+          
+          // Метод 4: прямой поиск в HTML
           if (!fullAddress && cellHtml) {
             const htmlMatch = cellHtml.match(/(0x[a-fA-F0-9]{40})/);
             if (htmlMatch) {
