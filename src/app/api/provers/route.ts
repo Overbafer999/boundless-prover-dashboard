@@ -197,6 +197,14 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w') 
               success: successText,
               mhz: mhzText
             }
+          } as {
+            ordersTaken: string;
+            cyclesProved: string;
+            ethEarnings: string;
+            usdcEarnings: string;
+            successRate: string;
+            peakMhz: string;
+            rawData: any;
           };
 
           console.log('✅ Converted values:', extractedValues);
@@ -207,11 +215,11 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w') 
 
     if (extractedValues) {
       return {
-        orders_taken: parseInt(extractedValues.ordersTaken),
-        order_earnings_eth: parseFloat(extractedValues.ethEarnings),
-        order_earnings_usd: parseFloat(extractedValues.usdcEarnings),
-        peak_mhz: parseFloat(extractedValues.peakMhz),
-        success_rate: parseFloat(extractedValues.successRate),
+        orders_taken: parseInt(extractedValues.ordersTaken || '0'),
+        order_earnings_eth: parseFloat(extractedValues.ethEarnings || '0'),
+        order_earnings_usd: parseFloat(extractedValues.usdcEarnings || '0'),
+        peak_mhz: parseFloat(extractedValues.peakMhz || '0'),
+        success_rate: parseFloat(extractedValues.successRate || '0'),
         source: 'real_prover_table_parsing',
         rawData: extractedValues,
         extractedValues
