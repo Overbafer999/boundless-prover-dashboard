@@ -365,7 +365,7 @@ async function parseProverPage(address: string, timeframe: string = '1w') {
         earningsUsd: 0,
         timeframe,
         source: 'parsing_error_debug',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : String(error)
       }
     };
   }
