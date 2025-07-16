@@ -184,21 +184,32 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
             console.log('🎯 Found matching row!');
             addressFound = true;
             
-            // Извлекаем данные из колонок
-            const ordersText = $(cells[2]).text().trim(); // 3-я колонка - Orders taken
-            const cyclesText = $(cells[3]).text().trim(); // 4-я колонка - Cycles proved  
-            const ethText = $(cells[4]).text().trim();    // 5-я колонка - Order earnings
-            const usdcText = $(cells[5]).text().trim();   // 6-я колонка - Stake earnings
-            const mhzText = $(cells[7]).text().trim();    // 8-я колонка - Peak MHz
-            const successText = $(cells[8]).text().trim(); // 9-я колонка - Success rate
+            // Извлекаем данные из колонок - ПРОБУЕМ РАЗНЫЕ ИНДЕКСЫ
+            const ordersText = $(cells[2]).text().trim(); // Orders taken
+            const ordersText2 = $(cells[3]).text().trim(); // Может тут?
+            const cyclesText = $(cells[3]).text().trim(); // Cycles proved  
+            const ethText = $(cells[4]).text().trim();    // Order earnings
+            const usdcText = $(cells[5]).text().trim();   // Stake earnings
+            const mhzText = $(cells[7]).text().trim();    // Peak MHz
+            const mhzText2 = $(cells[8]).text().trim();   // Может тут?
+            const successText = $(cells[8]).text().trim(); // Success rate
+            const successText2 = $(cells[9]).text().trim(); // Может тут?
             
-            console.log('📊 Raw data extracted:', {
-              orders: ordersText,
+            console.log('📊 Raw data extracted (ALL COLUMNS):');
+            for (let i = 0; i < cells.length; i++) {
+              console.log(`   Column ${i}: "${$(cells[i]).text().trim()}"`);
+            }
+            
+            console.log('📊 Target columns extracted:', {
+              orders2: ordersText,
+              orders3: ordersText2,
               cycles: cyclesText,
               eth: ethText,
               usdc: usdcText,
-              mhz: mhzText,
-              success: successText
+              mhz7: mhzText,
+              mhz8: mhzText2,
+              success8: successText,
+              success9: successText2
             });
 
             // Конвертируем orders (1K → 1000, 1.8K → 1800, etc.)
@@ -320,6 +331,15 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
           usdcEarnings: foundUsdcEarnings,
           successRate: foundSuccessRate,
           peakMhz: foundPeakMhz
+        },
+        // ДОБАВЛЯЕМ DEBUG ДАННЫЕ В ОТВЕТ
+        debug: {
+          searchAddress,
+          timeframe,
+          htmlLength: html.length,
+          rowsFound: rows.length,
+          addressFoundInHtml: addressInHtml,
+          allColumnsData: foundData
         }
       };
     } else {
@@ -331,7 +351,15 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
         peak_mhz: 0,
         success_rate: 0,
         source: 'address_not_found',
-        rawData: { searchAddress, timeframe, mappedTimeframe, htmlLength: html.length }
+        rawData: { searchAddress, timeframe, mappedTimeframe, htmlLength: html.length },
+        // ДОБАВЛЯЕМ DEBUG ДАННЫЕ В ОТВЕТ
+        debug: {
+          searchAddress,
+          timeframe,
+          htmlLength: html.length,
+          addressFoundInHtml: addressInHtml,
+          htmlSample: html.substring(0, 1000)
+        }
       };
     }
 
