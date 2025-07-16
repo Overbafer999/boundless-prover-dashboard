@@ -52,10 +52,22 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
 
     const html = await response.text();
     console.log('✅ HTML fetched, length:', html.length);
+    console.log('📝 HTML SAMPLE (first 1000 chars):', html.substring(0, 1000));
 
     // Приводим поисковый адрес к нижнему регистру для сравнения
     const searchAddressLower = searchAddress.toLowerCase();
     console.log('🔍 Looking for full address:', searchAddress);
+    console.log('🔍 Looking for lowercase:', searchAddressLower);
+
+    // Проверяем есть ли адрес в HTML вообще
+    const addressInHtml = html.toLowerCase().includes(searchAddressLower);
+    console.log('🎯 Address found anywhere in HTML:', addressInHtml);
+    
+    if (addressInHtml) {
+      const addressPos = html.toLowerCase().indexOf(searchAddressLower);
+      console.log('📍 Address position in HTML:', addressPos);
+      console.log('📝 HTML around address:', html.substring(Math.max(0, addressPos - 100), addressPos + 100));
+    }
 
     // Загружаем HTML с Cheerio
     const $ = cheerio.load(html);
@@ -63,6 +75,18 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
     // Ищем все строки таблицы
     const rows = $('tbody tr');
     console.log('📊 Found table rows:', rows.length);
+    
+    // Если нет строк, попробуем другие селекторы
+    if (rows.length === 0) {
+      const allRows = $('tr');
+      console.log('📊 Found ANY tr elements:', allRows.length);
+      
+      const tableElement = $('table');
+      console.log('📊 Found table elements:', tableElement.length);
+      if (tableElement.length > 0) {
+        console.log('📝 Table HTML sample:', tableElement.html()?.substring(0, 500));
+      }
+    }
 
     // Найденные данные - простые переменные
     let foundOrdersTaken = 0;
@@ -82,27 +106,56 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
         // Проверяем 2-ю колонку (адрес) - индекс 1
         const addressCell = $(cells[1]);
         
+        // DEBUG: Логируем ВСЮ HTML ячейки с адресом
+        const cellHtml = addressCell.html();
+        console.log(`🔍 Row ${index} address cell HTML:`, cellHtml);
+        
         // Ищем ПОЛНЫЙ адрес в title атрибуте или href
         const titleElement = addressCell.find('[title]');
         const linkElement = addressCell.find('a[href]');
+        const allText = addressCell.text().trim();
         
         let fullAddress = '';
         
-        // Сначала пробуем title атрибут
+        // Метод 1: title атрибут
         if (titleElement.length > 0) {
           fullAddress = titleElement.attr('title') || '';
+          console.log(`   Method 1 (title): "${fullAddress}"`);
         }
         
-        // Если нет title, пробуем href
+        // Метод 2: href
         if (!fullAddress && linkElement.length > 0) {
           const href = linkElement.attr('href') || '';
+          console.log(`   Method 2 (href): "${href}"`);
           const addressMatch = href.match(/\/provers\/(0x[a-fA-F0-9]{40})/);
           if (addressMatch) {
             fullAddress = addressMatch[1];
+            console.log(`   Method 2 extracted: "${fullAddress}"`);
           }
         }
         
-        console.log(`Row ${index}: Found address="${fullAddress}"`);
+        // Метод 3: прямой поиск в тексте
+        if (!fullAddress) {
+          const textMatch = allText.match(/(0x[a-fA-F0-9]{40})/);
+          if (textMatch) {
+            fullAddress = textMatch[1];
+            console.log(`   Method 3 (text): "${fullAddress}"`);
+          }
+        }
+        
+        // Метод 4: поиск в HTML
+        if (!fullAddress && cellHtml) {
+          const htmlMatch = cellHtml.match(/(0x[a-fA-F0-9]{40})/);
+          if (htmlMatch) {
+            fullAddress = htmlMatch[1];
+            console.log(`   Method 4 (HTML): "${fullAddress}"`);
+          }
+        }
+        
+        console.log(`   All text in cell: "${allText}"`);
+        console.log(`   Final address found: "${fullAddress}"`);
+        console.log(`   Looking for: "${searchAddress}"`);
+        console.log(`   Match: ${fullAddress && fullAddress.toLowerCase() === searchAddressLower}`);
         
         // Сравниваем ПОЛНЫЕ адреса (регистронезависимо)
         if (fullAddress && fullAddress.toLowerCase() === searchAddressLower) {
