@@ -498,6 +498,24 @@ async function parseProverPage(address: string, timeframe: string = '1w') {
     const html = await response.text();
     console.log(`📄 [DEBUG] HTML received, length: ${html.length}`);
 
+    // 🔥 ВРЕМЕННАЯ ОТЛАДКА - добавь эти строки
+console.log('🔥 HTML SAMPLE START 🔥');
+console.log(html.substring(0, 2000)); // Первые 2000 символов
+console.log('🔥 HTML SAMPLE END 🔥');
+
+// Поиск таблицы
+const tableMatch = html.match(/<table[\s\S]*?<\/table>/i);
+if (tableMatch) {
+  console.log('🔥 TABLE FOUND:', tableMatch[0].substring(0, 1000));
+} else {
+  console.log('🔥 NO TABLE TAG FOUND');
+}
+
+// Поиск адреса
+const searchAddress = address.toLowerCase();
+console.log('🔥 SEARCHING FOR:', searchAddress);
+console.log('🔥 ADDRESS IN HTML:', html.toLowerCase().includes(searchAddress));
+
     // ✅ НОВАЯ ЛОГИКА - ищем прувера в таблице
     const searchAddress = address.toLowerCase();
     const shortAddress = `${searchAddress.slice(0, 6)}…${searchAddress.slice(-4)}`; // 0xf0f9…c197
