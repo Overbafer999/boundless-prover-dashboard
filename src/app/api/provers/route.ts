@@ -21,6 +21,10 @@ const TIMEFRAME_BLOCKS = { '1d': 43200, '3d': 129600, '1w': 302400 };
 
 // --- ИСПРАВЛЕННЫЙ ПАРСЕР БЕЗ ТИПЕСКРИПТ ЕБЛИ --- //
 async function parseProverPage(searchAddress: string, timeframe: string = '1w'): Promise<any> {
+  console.log('🚀 parseProverPage STARTED');
+  console.log('🔍 Search address:', searchAddress);
+  console.log('📅 Timeframe:', timeframe);
+  
   try {
     // Правильные URL параметры
     const timeframeMap: Record<string, string> = {
