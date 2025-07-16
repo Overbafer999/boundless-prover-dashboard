@@ -98,6 +98,7 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
     let foundPeakMhz = 0;
     let foundData: any = null;
     let addressFound = false;
+    let rowsCount = 0; // ДОБАВИЛИ СЧЕТЧИК СТРОК
 
     try {
       // Загружаем HTML с Cheerio
@@ -107,6 +108,7 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
       // Ищем все строки таблицы
       const rows = $('tbody tr');
       console.log('📊 Found table rows:', rows.length);
+      rowsCount = rows.length; // СОХРАНЯЕМ КОЛИЧЕСТВО СТРОК
       
       // Если нет строк, попробуем другие селекторы
       if (rows.length === 0) {
@@ -337,7 +339,7 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
           searchAddress,
           timeframe,
           htmlLength: html.length,
-          rowsFound: rows.length,
+          rowsFound: rowsCount,
           addressFoundInHtml: addressInHtml,
           allColumnsData: foundData
         }
