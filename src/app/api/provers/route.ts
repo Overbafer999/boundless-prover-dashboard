@@ -19,8 +19,8 @@ const publicClient = createPublicClient({
 // --- CACHE и TIMEFRAMES --- //
 const TIMEFRAME_BLOCKS = { '1d': 43200, '3d': 129600, '1w': 302400 };
 
-// --- ИСПРАВЛЕННЫЙ ПАРСЕР --- //
-async function parseProverPage(searchAddress: string, timeframe: string = '1w') {
+// --- ИСПРАВЛЕННЫЙ ПАРСЕР БЕЗ ТИПЕСКРИПТ ЕБЛИ --- //
+async function parseProverPage(searchAddress: string, timeframe: string = '1w'): Promise<any> {
   try {
     // Правильные URL параметры
     const timeframeMap: Record<string, string> = {
@@ -64,22 +64,21 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w') 
     const rows = $('tbody tr');
     console.log('📊 Found table rows:', rows.length);
 
-    let extractedData: {
-      ordersTaken: number;
-      cyclesProved: number;
-      ethEarnings: number;
-      usdcEarnings: number;
-      successRate: number;
-      peakMhz: number;
-      rawData: any;
-    } | null = null;
+    // Найденные данные - простые переменные
+    let foundOrdersTaken = 0;
+    let foundEthEarnings = 0;
+    let foundUsdcEarnings = 0;
+    let foundSuccessRate = 0;
+    let foundPeakMhz = 0;
+    let foundData: any = null;
+    let addressFound = false;
 
     // Перебираем строки
     rows.each((index, element) => {
       const row = $(element);
       const cells = row.find('td');
       
-      if (cells.length >= 9) {
+      if (cells.length >= 9 && !addressFound) {
         // Проверяем 2-ю колонку (адрес) - индекс 1
         const addressCell = $(cells[1]);
         
@@ -108,13 +107,13 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w') 
         // Сравниваем ПОЛНЫЕ адреса (регистронезависимо)
         if (fullAddress && fullAddress.toLowerCase() === searchAddressLower) {
           console.log('🎯 Found matching row!');
+          addressFound = true;
           
           // Извлекаем данные из колонок
           const ordersText = $(cells[2]).text().trim(); // 3-я колонка - Orders taken
           const cyclesText = $(cells[3]).text().trim(); // 4-я колонка - Cycles proved  
           const ethText = $(cells[4]).text().trim();    // 5-я колонка - Order earnings
           const usdcText = $(cells[5]).text().trim();   // 6-я колонка - Stake earnings
-          const ethMcText = $(cells[6]).text().trim();  // 7-я колонка - Average ETH/MC
           const mhzText = $(cells[7]).text().trim();    // 8-я колонка - Peak MHz
           const successText = $(cells[8]).text().trim(); // 9-я колонка - Success rate
           
@@ -123,106 +122,89 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w') 
             cycles: cyclesText,
             eth: ethText,
             usdc: usdcText,
-            ethMc: ethMcText,
             mhz: mhzText,
             success: successText
           });
 
           // Конвертируем orders (1K → 1000, 1.8K → 1800, etc.)
-          let ordersTaken = 0;
           if (ordersText && ordersText !== '-') {
             if (ordersText.includes('K')) {
-              ordersTaken = Math.round(parseFloat(ordersText.replace('K', '')) * 1000);
+              foundOrdersTaken = Math.round(parseFloat(ordersText.replace('K', '')) * 1000);
             } else if (ordersText.includes('M')) {
-              ordersTaken = Math.round(parseFloat(ordersText.replace('M', '')) * 1000000);
+              foundOrdersTaken = Math.round(parseFloat(ordersText.replace('M', '')) * 1000000);
             } else {
-              ordersTaken = parseInt(ordersText.replace(/[^\d]/g, '')) || 0;
-            }
-          }
-
-          // Конвертируем cycles (89.29B → 89290000000)
-          let cyclesProved = 0;
-          if (cyclesText && cyclesText !== '-') {
-            if (cyclesText.includes('B')) {
-              cyclesProved = Math.round(parseFloat(cyclesText.replace('B', '')) * 1000000000);
-            } else if (cyclesText.includes('M')) {
-              cyclesProved = Math.round(parseFloat(cyclesText.replace('M', '')) * 1000000);
-            } else if (cyclesText.includes('K')) {
-              cyclesProved = Math.round(parseFloat(cyclesText.replace('K', '')) * 1000);
-            } else {
-              cyclesProved = parseInt(cyclesText.replace(/[^\d]/g, '')) || 0;
+              foundOrdersTaken = parseInt(ordersText.replace(/[^\d]/g, '')) || 0;
             }
           }
 
           // Извлекаем ETH сумму
-          let ethEarnings = 0;
           if (ethText && ethText !== '-') {
             const ethMatch = ethText.match(/([\d.]+)/);
             if (ethMatch) {
-              ethEarnings = parseFloat(ethMatch[1]);
+              foundEthEarnings = parseFloat(ethMatch[1]);
             }
           }
 
           // Извлекаем USDC сумму
-          let usdcEarnings = 0;
           if (usdcText && usdcText !== '-') {
             const usdcMatch = usdcText.match(/([\d.]+)/);
             if (usdcMatch) {
-              usdcEarnings = parseFloat(usdcMatch[1]);
+              foundUsdcEarnings = parseFloat(usdcMatch[1]);
             }
           }
 
           // Извлекаем success rate
-          let successRate = 0;
           if (successText && successText !== '-') {
             const successMatch = successText.match(/([\d.]+)/);
             if (successMatch) {
-              successRate = parseFloat(successMatch[1]);
+              foundSuccessRate = parseFloat(successMatch[1]);
             }
           }
 
           // Извлекаем MHz
-          let peakMhz = 0;
           if (mhzText && mhzText !== '-') {
             const mhzMatch = mhzText.match(/([\d.]+)/);
             if (mhzMatch) {
-              peakMhz = parseFloat(mhzMatch[1]);
+              foundPeakMhz = parseFloat(mhzMatch[1]);
             }
           }
 
-          extractedData = {
-            ordersTaken,
-            cyclesProved,
-            ethEarnings,
-            usdcEarnings,
-            successRate,
-            peakMhz,
-            rawData: {
-              orders: ordersText,
-              cycles: cyclesText,
-              eth: ethText,
-              usdc: usdcText,
-              success: successText,
-              mhz: mhzText
-            }
+          foundData = {
+            orders: ordersText,
+            cycles: cyclesText,
+            eth: ethText,
+            usdc: usdcText,
+            success: successText,
+            mhz: mhzText
           };
 
-          console.log('✅ Converted values:', extractedData);
-          return false; // Выходим из each()
+          console.log('✅ Converted values:', {
+            ordersTaken: foundOrdersTaken,
+            ethEarnings: foundEthEarnings,
+            usdcEarnings: foundUsdcEarnings,
+            successRate: foundSuccessRate,
+            peakMhz: foundPeakMhz
+          });
         }
       }
     });
 
-    if (extractedData) {
+    if (addressFound) {
       return {
-        orders_taken: extractedData.ordersTaken,
-        order_earnings_eth: extractedData.ethEarnings,
-        order_earnings_usd: extractedData.usdcEarnings,
-        peak_mhz: extractedData.peakMhz,
-        success_rate: extractedData.successRate,
+        orders_taken: foundOrdersTaken,
+        order_earnings_eth: foundEthEarnings,
+        order_earnings_usd: foundUsdcEarnings,
+        peak_mhz: foundPeakMhz,
+        success_rate: foundSuccessRate,
         source: 'real_prover_table_parsing',
-        rawData: extractedData,
-        extractedValues: extractedData
+        rawData: foundData,
+        extractedValues: {
+          ordersTaken: foundOrdersTaken,
+          ethEarnings: foundEthEarnings,
+          usdcEarnings: foundUsdcEarnings,
+          successRate: foundSuccessRate,
+          peakMhz: foundPeakMhz
+        }
       };
     } else {
       console.log('❌ Address not found in table');
