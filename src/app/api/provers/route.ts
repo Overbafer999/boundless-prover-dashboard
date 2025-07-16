@@ -511,13 +511,11 @@ if (tableMatch) {
   console.log('🔥 NO TABLE TAG FOUND');
 }
 
-// Поиск адреса
-const searchAddress = address.toLowerCase();
-console.log('🔥 SEARCHING FOR:', searchAddress);
-console.log('🔥 ADDRESS IN HTML:', html.toLowerCase().includes(searchAddress));
 
     // ✅ НОВАЯ ЛОГИКА - ищем прувера в таблице
     const searchAddress = address.toLowerCase();
+    console.log('🔥 SEARCHING FOR:', searchAddress);
+    console.log('🔥 ADDRESS IN HTML:', html.toLowerCase().includes(searchAddress));
     const shortAddress = `${searchAddress.slice(0, 6)}…${searchAddress.slice(-4)}`; // 0xf0f9…c197
 
     // 🔥 ДЕБАГ HTML СТРУКТУРЫ (ПОСЛЕ определения переменных)
