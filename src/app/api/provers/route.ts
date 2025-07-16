@@ -979,10 +979,10 @@ async function calculateAdvancedStats(address: string, realStats: any, stakeBala
   console.log(`🎯 Пробуем получить данные для провера ${address} с его персональной страницы...`);
   const proverPageData = await parseProverPage(address, timeframe);
   
-  if (proverPageData && (parseInt(proverPageData.orders_taken) > 0 || parseFloat(proverPageData.order_earnings_usd) > 0)) {
+ if (proverPageData && (proverPageData.orders_taken > 0 || proverPageData.order_earnings_usd > 0)) {
     console.log(`✅ Получены РЕАЛЬНЫЕ данные с страницы провера ${address}:`, proverPageData);
     
-    stats.total_orders = Math.max(0, parseInt(proverPageData.orders_taken)) || 0;
+    stats.total_orders = Math.max(0, proverPageData.orders_taken) || 0;
     stats.earnings = Math.max(0, parseFloat(proverPageData.order_earnings_usd)) || 0;
     stats.hash_rate = Math.max(0, parseFloat(proverPageData.peak_mhz)) || 0;
     stats.uptime = Math.max(0, Math.min(100, parseFloat(proverPageData.success_rate))) || 0;
