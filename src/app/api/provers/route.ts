@@ -19,7 +19,7 @@ const publicClient = createPublicClient({
 // --- CACHE и TIMEFRAMES --- //
 const TIMEFRAME_BLOCKS = { '1d': 43200, '3d': 129600, '1w': 302400 };
 
-// --- ИСПРАВЛЕННЫЙ ПАРСЕР БЕЗ ТИПЕСКРИПТ ЕБЛИ --- //
+// --- ПАРСЕР БЕЗ CHEERIO (FALLBACK) --- //
 async function parseProverPage(searchAddress: string, timeframe: string = '1w'): Promise<any> {
   console.log('🚀 parseProverPage STARTED');
   console.log('🔍 Search address:', searchAddress);
@@ -51,12 +51,20 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
 
     if (!response.ok) {
       console.error('❌ HTTP Error:', response.status, response.statusText);
-      return null;
+      return {
+        orders_taken: 0,
+        order_earnings_eth: 0,
+        order_earnings_usd: 0,
+        peak_mhz: 0,
+        success_rate: 0,
+        source: 'http_error',
+        rawData: { status: response.status, statusText: response.statusText }
+      };
     }
 
     const html = await response.text();
     console.log('✅ HTML fetched, length:', html.length);
-    console.log('📝 HTML SAMPLE (first 1000 chars):', html.substring(0, 1000));
+    console.log('📝 HTML SAMPLE (first 500 chars):', html.substring(0, 500));
 
     // Приводим поисковый адрес к нижнему регистру для сравнения
     const searchAddressLower = searchAddress.toLowerCase();
@@ -67,32 +75,22 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
     const addressInHtml = html.toLowerCase().includes(searchAddressLower);
     console.log('🎯 Address found anywhere in HTML:', addressInHtml);
     
-    if (addressInHtml) {
-      const addressPos = html.toLowerCase().indexOf(searchAddressLower);
-      console.log('📍 Address position in HTML:', addressPos);
-      console.log('📝 HTML around address:', html.substring(Math.max(0, addressPos - 100), addressPos + 100));
+    if (!addressInHtml) {
+      console.log('❌ Address not found in HTML at all');
+      return {
+        orders_taken: 0,
+        order_earnings_eth: 0,
+        order_earnings_usd: 0,
+        peak_mhz: 0,
+        success_rate: 0,
+        source: 'address_not_in_html',
+        rawData: { searchAddress, timeframe, mappedTimeframe, htmlLength: html.length }
+      };
     }
 
-    // Загружаем HTML с Cheerio
-    const $ = cheerio.load(html);
+    // ПАРСИМ БЕЗ CHEERIO - обычными string методами
+    console.log('🔥 TRYING CHEERIO PARSING...');
     
-    // Ищем все строки таблицы
-    const rows = $('tbody tr');
-    console.log('📊 Found table rows:', rows.length);
-    
-    // Если нет строк, попробуем другие селекторы
-    if (rows.length === 0) {
-      const allRows = $('tr');
-      console.log('📊 Found ANY tr elements:', allRows.length);
-      
-      const tableElement = $('table');
-      console.log('📊 Found table elements:', tableElement.length);
-      if (tableElement.length > 0) {
-        console.log('📝 Table HTML sample:', tableElement.html()?.substring(0, 500));
-      }
-    }
-
-    // Найденные данные - простые переменные
     let foundOrdersTaken = 0;
     let foundEthEarnings = 0;
     let foundUsdcEarnings = 0;
@@ -101,152 +99,211 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
     let foundData: any = null;
     let addressFound = false;
 
-    // Перебираем строки
-    rows.each((index, element) => {
-      const row = $(element);
-      const cells = row.find('td');
+    try {
+      // Загружаем HTML с Cheerio
+      const $ = cheerio.load(html);
+      console.log('✅ Cheerio loaded successfully');
       
-      if (cells.length >= 9 && !addressFound) {
-        // Проверяем 2-ю колонку (адрес) - индекс 1
-        const addressCell = $(cells[1]);
+      // Ищем все строки таблицы
+      const rows = $('tbody tr');
+      console.log('📊 Found table rows:', rows.length);
+      
+      // Если нет строк, попробуем другие селекторы
+      if (rows.length === 0) {
+        const allRows = $('tr');
+        console.log('📊 Found ANY tr elements:', allRows.length);
         
-        // DEBUG: Логируем ВСЮ HTML ячейки с адресом
-        const cellHtml = addressCell.html();
-        console.log(`🔍 Row ${index} address cell HTML:`, cellHtml);
+        const tableElement = $('table');
+        console.log('📊 Found table elements:', tableElement.length);
+      }
+
+      // Перебираем строки
+      rows.each((index, element) => {
+        const row = $(element);
+        const cells = row.find('td');
         
-        // Ищем ПОЛНЫЙ адрес в title атрибуте или href
-        const titleElement = addressCell.find('[title]');
-        const linkElement = addressCell.find('a[href]');
-        const allText = addressCell.text().trim();
-        
-        let fullAddress = '';
-        
-        // Метод 1: title атрибут
-        if (titleElement.length > 0) {
-          fullAddress = titleElement.attr('title') || '';
-          console.log(`   Method 1 (title): "${fullAddress}"`);
-        }
-        
-        // Метод 2: href
-        if (!fullAddress && linkElement.length > 0) {
-          const href = linkElement.attr('href') || '';
-          console.log(`   Method 2 (href): "${href}"`);
-          const addressMatch = href.match(/\/provers\/(0x[a-fA-F0-9]{40})/);
-          if (addressMatch) {
-            fullAddress = addressMatch[1];
-            console.log(`   Method 2 extracted: "${fullAddress}"`);
+        if (cells.length >= 9 && !addressFound) {
+          // Проверяем 2-ю колонку (адрес) - индекс 1
+          const addressCell = $(cells[1]);
+          
+          // DEBUG: Логируем ВСЮ HTML ячейки с адресом
+          const cellHtml = addressCell.html();
+          console.log(`🔍 Row ${index} address cell HTML:`, cellHtml);
+          
+          // Ищем ПОЛНЫЙ адрес в title атрибуте или href
+          const titleElement = addressCell.find('[title]');
+          const linkElement = addressCell.find('a[href]');
+          const allText = addressCell.text().trim();
+          
+          let fullAddress = '';
+          
+          // Метод 1: title атрибут
+          if (titleElement.length > 0) {
+            fullAddress = titleElement.attr('title') || '';
+            console.log(`   Method 1 (title): "${fullAddress}"`);
+          }
+          
+          // Метод 2: href
+          if (!fullAddress && linkElement.length > 0) {
+            const href = linkElement.attr('href') || '';
+            console.log(`   Method 2 (href): "${href}"`);
+            const addressMatch = href.match(/\/provers\/(0x[a-fA-F0-9]{40})/);
+            if (addressMatch) {
+              fullAddress = addressMatch[1];
+              console.log(`   Method 2 extracted: "${fullAddress}"`);
+            }
+          }
+          
+          // Метод 3: прямой поиск в тексте
+          if (!fullAddress) {
+            const textMatch = allText.match(/(0x[a-fA-F0-9]{40})/);
+            if (textMatch) {
+              fullAddress = textMatch[1];
+              console.log(`   Method 3 (text): "${fullAddress}"`);
+            }
+          }
+          
+          // Метод 4: поиск в HTML
+          if (!fullAddress && cellHtml) {
+            const htmlMatch = cellHtml.match(/(0x[a-fA-F0-9]{40})/);
+            if (htmlMatch) {
+              fullAddress = htmlMatch[1];
+              console.log(`   Method 4 (HTML): "${fullAddress}"`);
+            }
+          }
+          
+          console.log(`   All text in cell: "${allText}"`);
+          console.log(`   Final address found: "${fullAddress}"`);
+          console.log(`   Looking for: "${searchAddress}"`);
+          console.log(`   Match: ${fullAddress && fullAddress.toLowerCase() === searchAddressLower}`);
+          
+          // Сравниваем ПОЛНЫЕ адреса (регистронезависимо)
+          if (fullAddress && fullAddress.toLowerCase() === searchAddressLower) {
+            console.log('🎯 Found matching row!');
+            addressFound = true;
+            
+            // Извлекаем данные из колонок
+            const ordersText = $(cells[2]).text().trim(); // 3-я колонка - Orders taken
+            const cyclesText = $(cells[3]).text().trim(); // 4-я колонка - Cycles proved  
+            const ethText = $(cells[4]).text().trim();    // 5-я колонка - Order earnings
+            const usdcText = $(cells[5]).text().trim();   // 6-я колонка - Stake earnings
+            const mhzText = $(cells[7]).text().trim();    // 8-я колонка - Peak MHz
+            const successText = $(cells[8]).text().trim(); // 9-я колонка - Success rate
+            
+            console.log('📊 Raw data extracted:', {
+              orders: ordersText,
+              cycles: cyclesText,
+              eth: ethText,
+              usdc: usdcText,
+              mhz: mhzText,
+              success: successText
+            });
+
+            // Конвертируем orders (1K → 1000, 1.8K → 1800, etc.)
+            if (ordersText && ordersText !== '-') {
+              if (ordersText.includes('K')) {
+                foundOrdersTaken = Math.round(parseFloat(ordersText.replace('K', '')) * 1000);
+              } else if (ordersText.includes('M')) {
+                foundOrdersTaken = Math.round(parseFloat(ordersText.replace('M', '')) * 1000000);
+              } else {
+                foundOrdersTaken = parseInt(ordersText.replace(/[^\d]/g, '')) || 0;
+              }
+            }
+
+            // Извлекаем ETH сумму
+            if (ethText && ethText !== '-') {
+              const ethMatch = ethText.match(/([\d.]+)/);
+              if (ethMatch) {
+                foundEthEarnings = parseFloat(ethMatch[1]);
+              }
+            }
+
+            // Извлекаем USDC сумму
+            if (usdcText && usdcText !== '-') {
+              const usdcMatch = usdcText.match(/([\d.]+)/);
+              if (usdcMatch) {
+                foundUsdcEarnings = parseFloat(usdcMatch[1]);
+              }
+            }
+
+            // Извлекаем success rate
+            if (successText && successText !== '-') {
+              const successMatch = successText.match(/([\d.]+)/);
+              if (successMatch) {
+                foundSuccessRate = parseFloat(successMatch[1]);
+              }
+            }
+
+            // Извлекаем MHz
+            if (mhzText && mhzText !== '-') {
+              const mhzMatch = mhzText.match(/([\d.]+)/);
+              if (mhzMatch) {
+                foundPeakMhz = parseFloat(mhzMatch[1]);
+              }
+            }
+
+            foundData = {
+              orders: ordersText,
+              cycles: cyclesText,
+              eth: ethText,
+              usdc: usdcText,
+              success: successText,
+              mhz: mhzText
+            };
+
+            console.log('✅ Converted values:', {
+              ordersTaken: foundOrdersTaken,
+              ethEarnings: foundEthEarnings,
+              usdcEarnings: foundUsdcEarnings,
+              successRate: foundSuccessRate,
+              peakMhz: foundPeakMhz
+            });
           }
         }
+      });
+
+    } catch (cheerioError) {
+      console.error('❌ CHEERIO FAILED:', cheerioError);
+      
+      // FALLBACK: STRING PARSING
+      console.log('🔥 TRYING STRING PARSING FALLBACK...');
+      
+      // Ищем адрес и извлекаем строку таблицы вокруг него
+      const addressIndex = html.toLowerCase().indexOf(searchAddressLower);
+      if (addressIndex !== -1) {
+        console.log('📍 Address found at position:', addressIndex);
         
-        // Метод 3: прямой поиск в тексте
-        if (!fullAddress) {
-          const textMatch = allText.match(/(0x[a-fA-F0-9]{40})/);
-          if (textMatch) {
-            fullAddress = textMatch[1];
-            console.log(`   Method 3 (text): "${fullAddress}"`);
+        // Извлекаем контекст вокруг адреса
+        const contextStart = Math.max(0, addressIndex - 500);
+        const contextEnd = Math.min(html.length, addressIndex + 500);
+        const context = html.substring(contextStart, contextEnd);
+        console.log('📝 Context around address:', context);
+        
+        // Простая проверка - есть ли числа рядом с адресом
+        const numbersNearAddress = context.match(/(\d+(?:\.\d+)?[KM]?)/g);
+        if (numbersNearAddress && numbersNearAddress.length > 0) {
+          console.log('🔢 Numbers found near address:', numbersNearAddress);
+          
+          // Берем первое число как orders
+          const firstNumber = numbersNearAddress[0];
+          if (firstNumber.includes('K')) {
+            foundOrdersTaken = Math.round(parseFloat(firstNumber.replace('K', '')) * 1000);
+          } else if (firstNumber.includes('M')) {
+            foundOrdersTaken = Math.round(parseFloat(firstNumber.replace('M', '')) * 1000000);
+          } else {
+            foundOrdersTaken = parseInt(firstNumber) || 0;
           }
-        }
-        
-        // Метод 4: поиск в HTML
-        if (!fullAddress && cellHtml) {
-          const htmlMatch = cellHtml.match(/(0x[a-fA-F0-9]{40})/);
-          if (htmlMatch) {
-            fullAddress = htmlMatch[1];
-            console.log(`   Method 4 (HTML): "${fullAddress}"`);
-          }
-        }
-        
-        console.log(`   All text in cell: "${allText}"`);
-        console.log(`   Final address found: "${fullAddress}"`);
-        console.log(`   Looking for: "${searchAddress}"`);
-        console.log(`   Match: ${fullAddress && fullAddress.toLowerCase() === searchAddressLower}`);
-        
-        // Сравниваем ПОЛНЫЕ адреса (регистронезависимо)
-        if (fullAddress && fullAddress.toLowerCase() === searchAddressLower) {
-          console.log('🎯 Found matching row!');
+          
           addressFound = true;
+          foundData = { context, numbersFound: numbersNearAddress };
           
-          // Извлекаем данные из колонок
-          const ordersText = $(cells[2]).text().trim(); // 3-я колонка - Orders taken
-          const cyclesText = $(cells[3]).text().trim(); // 4-я колонка - Cycles proved  
-          const ethText = $(cells[4]).text().trim();    // 5-я колонка - Order earnings
-          const usdcText = $(cells[5]).text().trim();   // 6-я колонка - Stake earnings
-          const mhzText = $(cells[7]).text().trim();    // 8-я колонка - Peak MHz
-          const successText = $(cells[8]).text().trim(); // 9-я колонка - Success rate
-          
-          console.log('📊 Raw data extracted:', {
-            orders: ordersText,
-            cycles: cyclesText,
-            eth: ethText,
-            usdc: usdcText,
-            mhz: mhzText,
-            success: successText
-          });
-
-          // Конвертируем orders (1K → 1000, 1.8K → 1800, etc.)
-          if (ordersText && ordersText !== '-') {
-            if (ordersText.includes('K')) {
-              foundOrdersTaken = Math.round(parseFloat(ordersText.replace('K', '')) * 1000);
-            } else if (ordersText.includes('M')) {
-              foundOrdersTaken = Math.round(parseFloat(ordersText.replace('M', '')) * 1000000);
-            } else {
-              foundOrdersTaken = parseInt(ordersText.replace(/[^\d]/g, '')) || 0;
-            }
-          }
-
-          // Извлекаем ETH сумму
-          if (ethText && ethText !== '-') {
-            const ethMatch = ethText.match(/([\d.]+)/);
-            if (ethMatch) {
-              foundEthEarnings = parseFloat(ethMatch[1]);
-            }
-          }
-
-          // Извлекаем USDC сумму
-          if (usdcText && usdcText !== '-') {
-            const usdcMatch = usdcText.match(/([\d.]+)/);
-            if (usdcMatch) {
-              foundUsdcEarnings = parseFloat(usdcMatch[1]);
-            }
-          }
-
-          // Извлекаем success rate
-          if (successText && successText !== '-') {
-            const successMatch = successText.match(/([\d.]+)/);
-            if (successMatch) {
-              foundSuccessRate = parseFloat(successMatch[1]);
-            }
-          }
-
-          // Извлекаем MHz
-          if (mhzText && mhzText !== '-') {
-            const mhzMatch = mhzText.match(/([\d.]+)/);
-            if (mhzMatch) {
-              foundPeakMhz = parseFloat(mhzMatch[1]);
-            }
-          }
-
-          foundData = {
-            orders: ordersText,
-            cycles: cyclesText,
-            eth: ethText,
-            usdc: usdcText,
-            success: successText,
-            mhz: mhzText
-          };
-
-          console.log('✅ Converted values:', {
-            ordersTaken: foundOrdersTaken,
-            ethEarnings: foundEthEarnings,
-            usdcEarnings: foundUsdcEarnings,
-            successRate: foundSuccessRate,
-            peakMhz: foundPeakMhz
-          });
+          console.log('✅ String parsing extracted orders:', foundOrdersTaken);
         }
       }
-    });
+    }
 
     if (addressFound) {
+      console.log('🎉 SUCCESS! Address found and data extracted');
       return {
         orders_taken: foundOrdersTaken,
         order_earnings_eth: foundEthEarnings,
@@ -272,12 +329,12 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
         peak_mhz: 0,
         success_rate: 0,
         source: 'address_not_found',
-        rawData: { searchAddress, timeframe, mappedTimeframe }
+        rawData: { searchAddress, timeframe, mappedTimeframe, htmlLength: html.length }
       };
     }
 
   } catch (error) {
-    console.error('❌ Error parsing prover page:', error);
+    console.error('❌ FATAL ERROR in parseProverPage:', error);
     return {
       orders_taken: 0,
       order_earnings_eth: 0,
