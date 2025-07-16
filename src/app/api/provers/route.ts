@@ -64,7 +64,15 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w') 
     const rows = $('tbody tr');
     console.log('📊 Found table rows:', rows.length);
 
-    let extractedValues = null;
+    let extractedData: {
+      ordersTaken: number;
+      cyclesProved: number;
+      ethEarnings: number;
+      usdcEarnings: number;
+      successRate: number;
+      peakMhz: number;
+      rawData: any;
+    } | null = null;
 
     // Перебираем строки
     rows.each((index, element) => {
@@ -182,13 +190,13 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w') 
             }
           }
 
-          extractedValues = {
-            ordersTaken: ordersTaken.toString(),
-            cyclesProved: cyclesProved.toString(),
-            ethEarnings: ethEarnings.toString(),
-            usdcEarnings: usdcEarnings.toString(),
-            successRate: successRate.toString(),
-            peakMhz: peakMhz.toString(),
+          extractedData = {
+            ordersTaken,
+            cyclesProved,
+            ethEarnings,
+            usdcEarnings,
+            successRate,
+            peakMhz,
             rawData: {
               orders: ordersText,
               cycles: cyclesText,
@@ -197,32 +205,24 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w') 
               success: successText,
               mhz: mhzText
             }
-          } as {
-            ordersTaken: string;
-            cyclesProved: string;
-            ethEarnings: string;
-            usdcEarnings: string;
-            successRate: string;
-            peakMhz: string;
-            rawData: any;
           };
 
-          console.log('✅ Converted values:', extractedValues);
+          console.log('✅ Converted values:', extractedData);
           return false; // Выходим из each()
         }
       }
     });
 
-    if (extractedValues) {
+    if (extractedData) {
       return {
-        orders_taken: parseInt(extractedValues.ordersTaken || '0'),
-        order_earnings_eth: parseFloat(extractedValues.ethEarnings || '0'),
-        order_earnings_usd: parseFloat(extractedValues.usdcEarnings || '0'),
-        peak_mhz: parseFloat(extractedValues.peakMhz || '0'),
-        success_rate: parseFloat(extractedValues.successRate || '0'),
+        orders_taken: extractedData.ordersTaken,
+        order_earnings_eth: extractedData.ethEarnings,
+        order_earnings_usd: extractedData.usdcEarnings,
+        peak_mhz: extractedData.peakMhz,
+        success_rate: extractedData.successRate,
         source: 'real_prover_table_parsing',
-        rawData: extractedValues,
-        extractedValues
+        rawData: extractedData,
+        extractedValues: extractedData
       };
     } else {
       console.log('❌ Address not found in table');
