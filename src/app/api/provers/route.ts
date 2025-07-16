@@ -129,7 +129,7 @@ async function parseProverPage(address: string, timeframe: string = '1d') {
     
     // URL с правильным timeframe параметром
     const timeframeParam = timeframe === '1d' ? '1d' : timeframe === '3d' ? '3d' : '7d';
-    const proverPageUrl = `https://explorer.beboundless.xyz/provers/${address}?proving-activity-time-range=${timeframeParam}`;
+    const proverPageUrl = `https://explorer.beboundless.xyz/provers/${address}?proving-activity-time-range=${timeframe}`
     
     console.log(`📍 [DEBUG] Fetching URL: ${proverPageUrl}`);
     
