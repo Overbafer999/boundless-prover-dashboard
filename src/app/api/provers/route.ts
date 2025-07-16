@@ -979,13 +979,13 @@ async function calculateAdvancedStats(address: string, realStats: any, stakeBala
   console.log(`🎯 Пробуем получить данные для провера ${address} с его персональной страницы...`);
   const proverPageData = await parseProverPage(address, timeframe);
   
-  if (proverPageData && (parseInt(proverPageData.orders) > 0 || parseFloat(proverPageData.earnings) > 0)) {
+  if (proverPageData && (parseInt(proverPageData.orders_taken) > 0 || parseFloat(proverPageData.order_earnings_usd) > 0)) {
     console.log(`✅ Получены РЕАЛЬНЫЕ данные с страницы провера ${address}:`, proverPageData);
     
-    stats.total_orders = Math.max(0, parseInt(proverPageData.orders)) || 0;
-    stats.earnings = Math.max(0, parseFloat(proverPageData.earnings)) || 0;
-    stats.hash_rate = Math.max(0, parseFloat(proverPageData.hashRate)) || 0;
-    stats.uptime = Math.max(0, Math.min(100, parseFloat(proverPageData.uptime))) || 0;
+    stats.total_orders = Math.max(0, parseInt(proverPageData.orders_taken)) || 0;
+    stats.earnings = Math.max(0, parseFloat(proverPageData.order_earnings_usd)) || 0;
+    stats.hash_rate = Math.max(0, parseFloat(proverPageData.peak_mhz)) || 0;
+    stats.uptime = Math.max(0, Math.min(100, parseFloat(proverPageData.success_rate))) || 0;
     stats.successful_orders = Math.floor(stats.total_orders * (stats.uptime / 100));
     stats.last_active = 'Recently active (real data)';
     
@@ -1182,7 +1182,7 @@ export async function GET(request: NextRequest) {
       
       const proverPageData = await parseProverPage(query, timeframe);
       
-      if (proverPageData && (parseInt(proverPageData.orders) > 0 || parseFloat(proverPageData.earnings) > 0)) {
+      if (proverPageData && (parseInt(proverPageData.orders_taken) > 0 || parseFloat(proverPageData.order_earnings_usd) > 0)) {
         console.log(`✅ Найдены РЕАЛЬНЫЕ данные провера ${query}:`, proverPageData);
         
         const realProver = {
@@ -1190,28 +1190,28 @@ export async function GET(request: NextRequest) {
           nickname: `ZK_Validator_${query.slice(-4).toUpperCase()}`,
           gpu_model: 'NVIDIA RTX Series',
           location: 'Network Node',
-          status: parseFloat(proverPageData.uptime) > 50 ? 'online' : 'offline',
-          reputation_score: parseFloat(proverPageData.uptime) > 90 ? 4.5 : 3.8,
+          status: parseFloat(proverPageData.success_rate) > 50 ? 'online' : 'offline',
+          reputation_score: parseFloat(proverPageData.success_rate) > 90 ? 4.5 : 3.8,
           
-          total_orders: parseInt(proverPageData.orders),
-          successful_orders: Math.floor(parseInt(proverPageData.orders) * (parseFloat(proverPageData.uptime) / 100)),
+          total_orders: parseInt(proverPageData.orders_taken),
+          successful_orders: Math.floor(parseInt(proverPageData.orders_taken) * (parseFloat(proverPageData.success_rate) / 100)),
           
-          earnings_eth: parseFloat(proverPageData.earnings),
-          earnings_usd: parseFloat(proverPageData.earnings) * 3200,
-          earnings: parseFloat(proverPageData.earnings) * 3200,
+          earnings_eth: parseFloat(proverPageData.order_earnings_usd),
+          earnings_usd: parseFloat(proverPageData.order_earnings_usd) * 3200,
+          earnings: parseFloat(proverPageData.order_earnings_usd) * 3200,
           
-          hash_rate: proverPageData.hashRate,
-          hashRate: parseFloat(proverPageData.hashRate),
+          hash_rate: proverPageData.peak_mhz,
+          hashRate: parseFloat(proverPageData.peak_mhz),
           
-          uptime: proverPageData.uptime,
-          uptime_numeric: parseFloat(proverPageData.uptime),
+          uptime: proverPageData.success_rate,
+          uptime_numeric: parseFloat(proverPageData.success_rate),
           
           last_seen: new Date().toISOString(),
           blockchain_address: query.toLowerCase(),
           blockchain_verified: true,
           data_source: 'real_prover_page_parsing',
           
-          regular_balance: proverPageData.earnings,
+          regular_balance: proverPageData.order_earnings_usd,
           last_active: new Date().toISOString(),
           
           raw_parsed_data: proverPageData
