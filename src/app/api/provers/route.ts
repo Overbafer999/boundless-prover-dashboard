@@ -501,6 +501,25 @@ async function parseProverPage(address: string, timeframe: string = '1w') {
     // ✅ НОВАЯ ЛОГИКА - ищем прувера в таблице
     const searchAddress = address.toLowerCase();
     const shortAddress = `${searchAddress.slice(0, 6)}…${searchAddress.slice(-4)}`; // 0xf0f9…c197
+
+    // 🔥 ДЕБАГ HTML СТРУКТУРЫ (ПОСЛЕ определения переменных)
+    console.log(`🔍 [DEBUG] HTML sample (first 1000 chars):`, html.substring(0, 1000));
+    console.log(`🔍 [DEBUG] Looking for address:`, searchAddress);
+    console.log(`🔍 [DEBUG] Looking for short:`, shortAddress);
+
+    // Ищем где встречается адрес в HTML
+const addressMatches = [];
+let index = html.toLowerCase().indexOf(searchAddress);
+while (index !== -1) {
+  const start = Math.max(0, index - 50);
+  const end = Math.min(html.length, index + 100);
+  addressMatches.push({
+    index,
+    context: html.substring(start, end)
+  });
+  index = html.toLowerCase().indexOf(searchAddress, index + 1);
+}
+console.log(`🔍 [DEBUG] Address contexts found:`, addressMatches);
     
     console.log(`🔍 [DEBUG] Searching for address: ${searchAddress}`);
     console.log(`🔍 [DEBUG] Short format: ${shortAddress}`);
