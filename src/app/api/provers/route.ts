@@ -115,224 +115,241 @@ const SEARCH_CACHE_DURATION = 300000; // 5 минут кеш для поиска
 const PROVER_PAGE_CACHE_DURATION = 300000; // 5 минут кеш для страниц проверов
 
 // 🔥 ПАРСЕР С ДЕТАЛЬНЫМИ ЛОГАМИ ДЛЯ ОТЛАДКИ
-async function parseProverPage(address: string, timeframe: string = '1d') {
+async function parseProverPage(address: string, timeframe: string = '1w') {
   try {
     console.log(`🔍 [DEBUG] parseProverPage started for ${address} (${timeframe})`);
     
-    // Проверяем кеш
-    const cacheKey = `${address}_${timeframe}`;
-    if (blockchainCache.proverPages[cacheKey] &&
-        (Date.now() - blockchainCache.proverPages[cacheKey].timestamp) < PROVER_PAGE_CACHE_DURATION) {
-      console.log(`📦 [DEBUG] Returning cached data for ${address}`);
-      return blockchainCache.proverPages[cacheKey].data;
-    }
-    
-    // URL с правильным timeframe параметром
-    const timeframeParam = timeframe === '1d' ? '1d' : timeframe === '3d' ? '3d' : '7d';
-    const proverPageUrl = `https://explorer.beboundless.xyz/provers/${address}?proving-activity-time-range=${timeframe}`
-    
-    console.log(`📍 [DEBUG] Fetching URL: ${proverPageUrl}`);
+    // ✅ НОВЫЙ URL - парсим главную страницу с таблицей!
+    const proverPageUrl = `https://explorer.beboundless.xyz/provers?proving-activity-time-range=${timeframe}`;
+    console.log(`📡 [DEBUG] Fetching URL: ${proverPageUrl}`);
     
     const response = await fetch(proverPageUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
         'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1'
-      },
-      cache: 'no-cache'
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Cache-Control': 'max-age=0'
+      }
     });
-    
+
     console.log(`📡 [DEBUG] Response status: ${response.status}`);
-    console.log(`📡 [DEBUG] Response ok: ${response.ok}`);
     
     if (!response.ok) {
-      console.log(`❌ [DEBUG] Response not ok: ${response.status} ${response.statusText}`);
-      return null;
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const html = await response.text();
     console.log(`📄 [DEBUG] HTML received, length: ${html.length}`);
-    console.log(`📄 [DEBUG] HTML preview: ${html.substring(0, 200)}...`);
+
+    // ✅ НОВАЯ ЛОГИКА - ищем прувера в таблице
+    const searchAddress = address.toLowerCase();
+    const shortAddress = `${searchAddress.slice(0, 6)}…${searchAddress.slice(-4)}`; // 0xf0f9…c197
     
-    // Проверяем содержимое HTML
-    const htmlChecks = {
-      hasOrdersTaken: html.includes('Orders taken'),
-      hasOrderEarnings: html.includes('Order earnings'),
-      hasPeakMHz: html.includes('Peak MHz'),
-      hasSuccessRate: html.includes('success rate'),
-      hasNumbers: html.match(/\d+/g)?.length || 0
-    };
-    console.log(`🔍 [DEBUG] HTML content checks:`, htmlChecks);
+    console.log(`🔍 [DEBUG] Searching for address: ${searchAddress}`);
+    console.log(`🔍 [DEBUG] Short format: ${shortAddress}`);
     
-    // Тестируем regex паттерны
-    const testPatterns = {
-      ordersPattern1: html.match(/Orders\s+taken[\s\S]*?(\d{1,4}(?:,\d{3})*)/i),
-      ordersPattern2: html.match(/orders?[\s\S]*?(\d{2,4})/i),
-      earningsPattern1: html.match(/Order\s+earnings[\s\S]*?([\d.]+)\s*ETH/i),
-      earningsPattern2: html.match(/([\d.]+)\s*ETH/gi),
-      mhzPattern1: html.match(/Peak\s+MHz[\s\S]*?([\d.]+)/i),
-      mhzPattern2: html.match(/([\d.]+)\s*MHz/gi),
-      successPattern1: html.match(/success\s+rate[\s\S]*?([\d.]+)%/i),
-      successPattern2: html.match(/([\d.]+)%/gi)
-    };
-    console.log(`🔍 [DEBUG] Pattern test results:`, testPatterns);
+    // Проверяем есть ли прувер в HTML
+    const hasFullAddress = html.toLowerCase().includes(searchAddress);
+    const hasShortAddress = html.includes(shortAddress);
     
-    // Улучшенный парсинг данных
-    const extractRealData = (html: string) => {
-      console.log('🔍 [DEBUG] Starting data extraction...');
-      
-      const findValue = (patterns: string[], type: string) => {
-        for (let i = 0; i < patterns.length; i++) {
-          const pattern = patterns[i];
-          const regex = new RegExp(pattern, 'gi');
-          const matches = html.match(regex);
-          
-          if (matches && matches.length > 0) {
-            console.log(`✅ [DEBUG] ${type} - pattern ${i + 1} found: "${matches[0]}"`);
-            
-            const numberMatch = matches[0].match(/([\d,]+(?:\.[\d]+)?)/);
-            if (numberMatch) {
-              const value = parseFloat(numberMatch[1].replace(/,/g, ''));
-              console.log(`📊 [DEBUG] ${type} extracted value: ${value}`);
-              return value;
-            }
-          }
-        }
-        console.log(`❌ [DEBUG] ${type} - no patterns matched`);
-        return 0;
-      };
-      
-      // Orders taken
-      const ordersTaken = findValue([
-        'Orders taken[^<]*?(\\d{1,3}(?:,\\d{3})*)',  // Останавливается на HTML тегах
-        '>(\\d{1,3}(?:,\\d{3})*)</.*orders',         // Число внутри тегов с "orders"
-        'orders[^>]*>(\\d{1,3}(?:,\\d{3})*)<',       // Число после "orders" в теге
-        '950',                                        // Прямой поиск известного числа
-        '(\\d{3,4})(?=\\s*</)',                     // 3-4 цифры перед закрывающим тегом
-      ], 'Orders Taken');
-      
-      // Order earnings
-      const orderEarnings = findValue([
-        'Order earnings[^<]*?(0\\.\\d{4,})\\s*ETH',  // Останавливается на HTML
-        'earnings[^>]*>(0\\.\\d{4,})',               // Внутри тегов
-        '>(0\\.\\d{4,})</.*ETH',                     // Число с ETH
-        '0\\.0001615',                                // Прямой поиск известного числа
-        '(0\\.\\d{6,})',                             // Маленькие десятичные числа
-      ], 'Order Earnings');
-      
-      // Peak MHz
-      const peakMHz = findValue([
-        'Peak MHz[^<]*?(\\d\\.\\d{4,})',            // Останавливается на HTML
-        'MHz[^>]*>(\\d\\.\\d+)',                     // Внутри тегов
-        '>(\\d\\.\\d{4,})</.*MHz',                   // Число с MHz
-        '3\\.631180',                                 // Прямой поиск известного числа
-        '(\\d\\.\\d{5,})',                           // Числа с 5+ знаками после точки
-      ], 'Peak MHz');
-      
-      // Success rate
-      const successRate = findValue([
-        'success rate[^<]*?(\\d{2}\\.\\d+)%',       // Останавливается на HTML
-        'rate[^>]*>(\\d{2}\\.\\d+)',                 // Внутри тегов
-        '>(\\d{2}\\.\\d+)%',                         // Проценты
-        '96\\.6',                                     // Прямой поиск известного числа
-        '(9\\d\\.\\d+)',                             // Числа начинающиеся с 9X.X
-      ], 'Success Rate');
-      
-      const results = {
-        ordersTaken,
-        orderEarnings,
-        peakMHz,
-        successRate
-      };
-      
-      console.log(`📊 [DEBUG] Final extracted data:`, results);
-      return results;
-    };
+    console.log(`📊 [DEBUG] Found full address: ${hasFullAddress}`);
+    console.log(`📊 [DEBUG] Found short address: ${hasShortAddress}`);
     
-    const rawData = extractRealData(html);
-    
-    // Проверяем результаты
-    console.log(`🔍 [DEBUG] Extraction results:`, rawData);
-    
-    if (rawData.ordersTaken === 0 && rawData.orderEarnings === 0 && rawData.peakMHz === 0) {
-      console.log(`❌ [DEBUG] No valid data extracted for ${address}`);
-      console.log(`📄 [DEBUG] Saving HTML sample for analysis...`);
-      
-      // Возвращаем дебаг-данные вместо null
+    if (!hasFullAddress && !hasShortAddress) {
+      console.log(`❌ [DEBUG] Prover ${address} not found in table for timeframe ${timeframe}`);
       return {
-        orders: "0",
-        earnings: "0.00000000",
-        hashRate: "0.000000",
-        uptime: "0.0",
+        orders_taken: 0,
+        order_earnings_eth: 0,
+        order_earnings_usd: 0,
+        peak_mhz: 0,
+        success_rate: 0,
+        source: 'not_found_in_timeframe',
         rawData: {
-          totalOrdersTaken: 0,
-          totalOrderEarnings: 0,
-          peakMHz: 0,
-          successRate: 0,
-          earningsUsd: 0,
-          timeframe,
-          source: 'parsing_failed_debug',
+          fetchedUrl: proverPageUrl,
+          responseStatus: response.status,
           htmlLength: html.length,
-          htmlPreview: html.substring(0, 500),
-          patterns: testPatterns,
-          debugInfo: htmlChecks
+          searchedAddress: searchAddress,
+          searchedShort: shortAddress,
+          foundInHtml: false,
+          timeframe: timeframe
         }
       };
     }
     
-    console.log(`✅ [DEBUG] Successfully extracted data for ${address}`);
+    // ✅ НОВЫЕ REGEX для таблицы - ищем строку с нашим прувером
+    let proverRowData = null;
     
-    const result = {
-      orders: rawData.ordersTaken.toString(),
-      earnings: rawData.orderEarnings.toFixed(8),
-      hashRate: rawData.peakMHz.toFixed(6),
-      uptime: rawData.successRate.toFixed(1),
-      rawData: {
-        totalOrdersTaken: rawData.ordersTaken,
-        totalOrderEarnings: rawData.orderEarnings,
-        peakMHz: rawData.peakMHz,
-        successRate: rawData.successRate,
-        earningsUsd: rawData.orderEarnings * 3200,
-        timeframe,
-        source: 'real_prover_page_parsing_debug_success',
+    // Ищем блок с нашим адресом и извлекаем данные из той же строки
+    const tableRowRegex = new RegExp(
+      `<tr[^>]*>([\\s\\S]*?${searchAddress.slice(0, 10)}[\\s\\S]*?)</tr>`, 
+      'i'
+    );
+    
+    const rowMatch = html.match(tableRowRegex);
+    
+    if (rowMatch) {
+      proverRowData = rowMatch[1];
+      console.log(`🎯 [DEBUG] Found prover row data (first 200 chars):`, proverRowData.substring(0, 200));
+    } else {
+      // Попробуем более широкий поиск
+      const addressIndex = html.toLowerCase().indexOf(searchAddress);
+      if (addressIndex !== -1) {
+        // Найдем ближайший <tr> блок
+        const beforeAddress = html.substring(0, addressIndex);
+        const afterAddress = html.substring(addressIndex);
         
-        // 🔥 ОТЛАДОЧНЫЕ ПОЛЯ ДЛЯ АНАЛИЗА ПРОБЛЕМЫ:
-        htmlLength: html.length,
-        htmlPreview: html.substring(0, 500),
-        htmlChecks: htmlChecks,
-        testPatterns: testPatterns,
-        fetchedUrl: proverPageUrl,  // 🔥 ДОБАВЛЯЕМ URL ДЛЯ ПРОВЕРКИ
-        responseStatus: response.status,  // 🔥 ДОБАВЛЯЕМ СТАТУС
-        debugExtraction: {
-          ordersFound: html.match(/Orders\s+taken[\s\S]*?(\d{1,4}(?:,\d{3})*)/gi),
-          earningsFound: html.match(/Order\s+earnings[\s\S]*?([\d.]+)\s*ETH/gi),
-          mhzFound: html.match(/Peak\s+MHz[\s\S]*?([\d.]+)/gi),
-          successFound: html.match(/success\s+rate[\s\S]*?([\d.]+)%/gi),
-          allNumbers: html.match(/\d+/g)?.slice(0, 50), // Первые 50 чисел в HTML
-          specificSearches: {
-            search950: html.includes('950'),
-            search0001615: html.includes('0.0001615'),
-            search3631180: html.includes('3.631180'),
-            searchOrdersTaken: html.includes('Orders taken')
+        const lastTrStart = beforeAddress.lastIndexOf('<tr');
+        const nextTrEnd = afterAddress.indexOf('</tr>') + 5;
+        
+        if (lastTrStart !== -1 && nextTrEnd !== -1) {
+          proverRowData = html.substring(lastTrStart, addressIndex + nextTrEnd);
+          console.log(`🎯 [DEBUG] Found prover via manual search (first 200 chars):`, proverRowData.substring(0, 200));
+        }
+      }
+    }
+    
+    if (!proverRowData) {
+      console.log(`❌ [DEBUG] Could not extract row data for ${address}`);
+      return {
+        orders_taken: 0,
+        order_earnings_eth: 0,
+        order_earnings_usd: 0,
+        peak_mhz: 0,
+        success_rate: 0,
+        source: 'row_extraction_failed',
+        rawData: {
+          fetchedUrl: proverPageUrl,
+          addressFound: hasFullAddress || hasShortAddress,
+          extractionFailed: true
+        }
+      };
+    }
+    
+    // ✅ НОВАЯ ФУНКЦИЯ для извлечения данных из строки таблицы
+    const extractFromRow = (patterns: string[], fieldName: string) => {
+      for (const pattern of patterns) {
+        try {
+          const regex = new RegExp(pattern, 'i');
+          const match = proverRowData.match(regex);
+          if (match && match[1]) {
+            console.log(`✅ [DEBUG] ${fieldName} found: ${match[1]} (pattern: ${pattern})`);
+            return match[1];
           }
+        } catch (err) {
+          console.log(`❌ [DEBUG] ${fieldName} pattern error:`, pattern, err);
+        }
+      }
+      console.log(`❌ [DEBUG] ${fieldName} not found in row`);
+      return null;
+    };
+    
+    // ✅ НОВЫЕ ПАТТЕРНЫ для данных в строке таблицы
+    // Основываемся на том что видели: 0xf0f9…c197, 963, 84.25B, 0.00000001 ETH, 0.25000000 USDC, etc.
+    
+    // Orders taken - второе число после адреса (963)
+    const ordersTaken = extractFromRow([
+      `${shortAddress}[\\s\\S]*?>(\\d{1,5})<`,  // После короткого адреса ищем число
+      `${searchAddress.slice(0, 10)}[\\s\\S]*?>(\\d{1,5})<`,  // После начала адреса
+      '>\\s*(\\d{3,5})\\s*<[\\s\\S]*?ETH',  // Число перед ETH (orders обычно больше 100)
+      '>(\\d{3,5})<[\\s\\S]*?MHz',  // Число перед MHz данными
+    ], 'Orders Taken');
+    
+    // Order earnings ETH - ищем ETH значения
+    const orderEarningsETH = extractFromRow([
+      '(0\\.\\d{8,})\\s*ETH',  // ETH значения
+      '>(0\\.\\d{4,})<[\\s\\S]*?ETH',  // В тегах перед ETH
+      'ETH[^>]*>(0\\.\\d+)<',  // После ETH текста
+    ], 'Order Earnings ETH');
+    
+    // USDC earnings для USD конвертации
+    const orderEarningsUSDC = extractFromRow([
+      '(\\d+\\.\\d{8})\\s*USDC',  // USDC значения  
+      '>(\\d+\\.\\d{4,})<[\\s\\S]*?USDC',  // В тегах перед USDC
+      'USDC[^>]*>(\\d+\\.\\d+)<',  // После USDC текста
+    ], 'Order Earnings USDC');
+    
+    // Peak MHz - ищем MHz значения
+    const peakMHz = extractFromRow([
+      '(\\d+\\.\\d{6})\\s*MHz',  // MHz значения (1.776159 MHz)
+      '>(\\d+\\.\\d+)<[\\s\\S]*?MHz',  // В тегах перед MHz
+      'MHz[^>]*>(\\d+\\.\\d+)<',  // После MHz текста
+    ], 'Peak MHz');
+    
+    // Success rate - ищем проценты
+    const successRate = extractFromRow([
+      '(\\d{2}\\.\\d+)%',  // Проценты (98.1%)
+      '>(\\d{2}\\.\\d+)<[\\s\\S]*?%',  // В тегах перед %
+      '%[^>]*>(\\d{2}\\.\\d+)<',  // После % символа
+    ], 'Success Rate');
+    
+    // ✅ ПАРСИНГ И КОНВЕРТАЦИЯ значений
+    const orders = ordersTaken ? parseInt(ordersTaken.replace(/,/g, '')) : 0;
+    const ethEarnings = orderEarningsETH ? parseFloat(orderEarningsETH) : 0;
+    const usdcEarnings = orderEarningsUSDC ? parseFloat(orderEarningsUSDC) : 0;
+    const mhz = peakMHz ? parseFloat(peakMHz) : 0;
+    const successPct = successRate ? parseFloat(successRate) : 0;
+    
+    // Конвертируем ETH в USD (примерная цена $3200)
+    const ethToUsd = ethEarnings * 3200;
+    const totalUsdEarnings = ethToUsd + usdcEarnings;
+    
+    const results = {
+      orders_taken: orders,
+      order_earnings_eth: ethEarnings,
+      order_earnings_usd: totalUsdEarnings,
+      peak_mhz: mhz,
+      success_rate: successPct,
+      source: 'real_prover_table_parsing',
+      rawData: {
+        fetchedUrl: proverPageUrl,
+        responseStatus: response.status,
+        htmlLength: html.length,
+        timeframe: timeframe,
+        searchedAddress: searchAddress,
+        foundInTable: true,
+        extractedValues: {
+          ordersTaken: ordersTaken,
+          orderEarningsETH: orderEarningsETH,
+          orderEarningsUSDC: orderEarningsUSDC,
+          peakMHz: peakMHz,
+          successRate: successRate
+        },
+        parsedValues: {
+          orders,
+          ethEarnings,
+          usdcEarnings,
+          totalUsdEarnings,
+          mhz,
+          successPct
         }
       }
     };
     
-    // Кешируем результат
-    blockchainCache.proverPages[cacheKey] = {
-      data: result,
-      timestamp: Date.now()
-    };
-    
-    console.log(`✅ [DEBUG] Final result for ${address}:`, result);
-    return result;
+    console.log(`📊 [DEBUG] Final extracted data for ${timeframe}:`, results);
+    return results;
     
   } catch (error) {
-    console.error(`❌ [DEBUG] parseProverPage error for ${address}:`, error);
+    console.error(`❌ [DEBUG] parseProverPage failed for ${address}:`, error);
+    return {
+      orders_taken: 0,
+      order_earnings_eth: 0,
+      order_earnings_usd: 0,
+      peak_mhz: 0,
+      success_rate: 0,
+      source: 'parsing_error',
+      rawData: {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        address: address,
+        timeframe: timeframe
+      }
+    };
     
     // Возвращаем дебаг-данные вместо null
     return {
