@@ -142,7 +142,7 @@ export async function GET(request: NextRequest) {
       
       const proverPageData = await parseProverPage(query, timeframe);
       
-      if (proverPageData && ((proverPageData.orders_taken || 0) > 0 || (proverPageData.order_earnings_usd || 0) > 0)) {
+      if (proverPageData && proverPageData.source !== 'parsing_error') {
         console.log(`✅ Найдены РЕАЛЬНЫЕ данные провера ${query}:`, proverPageData);
         
         const realProver = {
@@ -1355,7 +1355,7 @@ async function calculateAdvancedStats(address: string, realStats: any, stakeBala
   console.log(`🎯 Пробуем получить данные для провера ${address} с его персональной страницы...`);
   const proverPageData = await parseProverPage(address, timeframe);
   
-  if (proverPageData && ((proverPageData.orders_taken || 0) > 0 || (proverPageData.order_earnings_usd || 0) > 0)) {
+  if (proverPageData && proverPageData.source !== 'parsing_error') {
     console.log(`✅ Получены РЕАЛЬНЫЕ данные с страницы провера ${address}:`, proverPageData);
     
     stats.total_orders = Math.max(0, proverPageData.orders_taken || 0);
