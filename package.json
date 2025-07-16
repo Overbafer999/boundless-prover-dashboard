@@ -48,7 +48,7 @@
     "viem": "^2.31.7",
     "ws": "8.14.2",
     "zustand": "4.4.7",
-    "undici": "5.26.5"
+  
   },
   "devDependencies": {
     "@tailwindcss/forms": "0.5.7",
