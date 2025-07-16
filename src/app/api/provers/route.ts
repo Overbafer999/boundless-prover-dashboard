@@ -237,7 +237,7 @@ async function parseProverPage(address: string, timeframe: string = '1w') {
       for (const pattern of patterns) {
         try {
           const regex = new RegExp(pattern, 'i');
-          const match = proverRowData.match(regex);
+          const match = proverRowData?.match(regex);
           if (match && match[1]) {
             console.log(`✅ [DEBUG] ${fieldName} found: ${match[1]} (pattern: ${pattern})`);
             return match[1];
