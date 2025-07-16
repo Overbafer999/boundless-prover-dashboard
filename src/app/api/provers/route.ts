@@ -345,10 +345,10 @@ async function parseProverPage(address: string, timeframe: string = '1w') {
       success_rate: 0,
       source: 'parsing_error',
       rawData: {
-        error: error instanceof Error ? error.message : String(error)
-        address: address,
-        timeframe: timeframe
-      }
+  error: error instanceof Error ? error.message : String(error),
+  address: address,
+  timeframe: timeframe
+}
     };
     
     // Возвращаем дебаг-данные вместо null
