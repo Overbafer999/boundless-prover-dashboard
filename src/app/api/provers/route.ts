@@ -61,12 +61,14 @@ const blockchainCache: BlockchainCache = {
 import cheerio from 'cheerio';
 async function parseProverPage(address: string, timeframe: string = '1w') {
   try {
-    const timeframeMap = {
-      '1d': '24h',
-      '3d': '3d',
-      '1w': '7d'
-    };
-    const url = `https://explorer.beboundless.xyz/provers?period=${timeframeMap[timeframe] || '24h'}`;
+   const timeframeMap = {
+  '1d': '24h',
+  '3d': '3d', 
+  '1w': '7d'
+} as const;
+
+const mappedTimeframe = timeframeMap[timeframe as keyof typeof timeframeMap] || '24h';
+const url = `https://explorer.beboundless.xyz/provers?period=${mappedTimeframe}`;
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
