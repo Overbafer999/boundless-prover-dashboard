@@ -778,6 +778,15 @@ console.log(`🔍 [DEBUG] Address contexts found:`, addressMatches);
     };
     
     console.log(`📊 [DEBUG] Final extracted data for ${timeframe}:`, results);
+    results.debugLogs = {
+  htmlLength: html.length,
+  htmlSample: html.substring(0, 1000),
+  searchAddress: searchAddress,
+  shortAddress: shortAddress,
+  addressMatches: addressMatches,
+  hasFullAddress: hasFullAddress,
+  hasShortAddress: hasShortAddress
+};
     return results;
     
   } catch (error) {
