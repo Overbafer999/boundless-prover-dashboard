@@ -1182,7 +1182,7 @@ export async function GET(request: NextRequest) {
       
       const proverPageData = await parseProverPage(query, timeframe);
       
-      if (proverPageData && (parseInt(proverPageData.orders_taken) > 0 || parseFloat(proverPageData.order_earnings_usd) > 0)) {
+      if (proverPageData && ((proverPageData.orders_taken || 0) > 0 || (proverPageData.order_earnings_usd || 0) > 0)) {
         console.log(`✅ Найдены РЕАЛЬНЫЕ данные провера ${query}:`, proverPageData);
         
         const realProver = {
@@ -1190,21 +1190,21 @@ export async function GET(request: NextRequest) {
           nickname: `ZK_Validator_${query.slice(-4).toUpperCase()}`,
           gpu_model: 'NVIDIA RTX Series',
           location: 'Network Node',
-          status: parseFloat(proverPageData.success_rate) > 50 ? 'online' : 'offline',
-          reputation_score: parseFloat(proverPageData.success_rate) > 90 ? 4.5 : 3.8,
+          status: (proverPageData.success_rate || 0) > 50 ? 'online' : 'offline',
+          reputation_score: (proverPageData.success_rate || 0) > 90 ? 4.5 : 3.8,
           
-          total_orders: parseInt(proverPageData.orders_taken),
-          successful_orders: Math.floor(parseInt(proverPageData.orders_taken) * (parseFloat(proverPageData.success_rate) / 100)),
+          total_orders: (proverPageData.orders_taken || 0),
+          successful_orders: Math.floor((proverPageData.orders_taken || 0) * ((proverPageData.success_rate || 0) / 100)),
           
-          earnings_eth: parseFloat(proverPageData.order_earnings_usd),
-          earnings_usd: parseFloat(proverPageData.order_earnings_usd) * 3200,
-          earnings: parseFloat(proverPageData.order_earnings_usd) * 3200,
+          earnings_eth: (proverPageData.order_earnings_usd || 0),
+          earnings_usd: (proverPageData.order_earnings_usd || 0) * 3200,
+          earnings: (proverPageData.order_earnings_usd || 0) * 3200,
           
           hash_rate: proverPageData.peak_mhz,
-          hashRate: parseFloat(proverPageData.peak_mhz),
+          hashRate: (proverPageData.peak_mhz || 0),
           
           uptime: proverPageData.success_rate,
-          uptime_numeric: parseFloat(proverPageData.success_rate),
+          uptime_numeric: (proverPageData.success_rate || 0),
           
           last_seen: new Date().toISOString(),
           blockchain_address: query.toLowerCase(),
