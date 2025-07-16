@@ -184,7 +184,7 @@ async function parseProverPage(address: string, timeframe: string = '1w') {
     }
     
     // ✅ НОВЫЕ REGEX для таблицы - ищем строку с нашим прувером
-    let proverRowData = null;
+    let proverRowData: string | null = null;
     
     // Ищем блок с нашим адресом и извлекаем данные из той же строки
     const tableRowRegex = new RegExp(
