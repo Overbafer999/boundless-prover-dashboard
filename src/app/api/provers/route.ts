@@ -778,7 +778,7 @@ console.log(`🔍 [DEBUG] Address contexts found:`, addressMatches);
     };
     
     console.log(`📊 [DEBUG] Final extracted data for ${timeframe}:`, results);
-    results.debugLogs = {
+   results.rawData.debugLogs = {
   htmlLength: html.length,
   htmlSample: html.substring(0, 1000),
   searchAddress: searchAddress,
