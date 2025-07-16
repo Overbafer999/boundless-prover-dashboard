@@ -154,11 +154,13 @@ export async function GET(request: NextRequest) {
           reputation_score: (proverPageData.success_rate || 0) > 90 ? 4.5 : 3.8,
           
           total_orders: (proverPageData.orders_taken || 0),
-          successful_orders: Math.floor((proverPageData.orders_taken || 0) * ((proverPageData.success_rate || 0) / 100)),
-          
-          earnings_eth: (proverPageData.order_earnings_usd || 0),
-          earnings_usd: (proverPageData.order_earnings_usd || 0) * 3200,
-          earnings: (proverPageData.order_earnings_usd || 0) * 3200,
+successful_orders: Math.floor((proverPageData.orders_taken || 0) * ((proverPageData.success_rate || 0) / 100)),
+
+earnings_eth: (proverPageData.order_earnings_eth || 0),
+earnings_usd: (proverPageData.order_earnings_usd || 0),
+
+earnings_usd_total: ((proverPageData.order_earnings_eth || 0) * 3200) + (proverPageData.order_earnings_usd || 0), // <-- если хочешь сумму!
+
           
           hash_rate: proverPageData.peak_mhz,
           hashRate: (proverPageData.peak_mhz || 0),
@@ -456,61 +458,72 @@ const CACHE_DURATION = 30000; // 30 секунд кеш для dashboard
 const SEARCH_CACHE_DURATION = 300000; // 5 минут кеш для поиска
 const PROVER_PAGE_CACHE_DURATION = 300000; // 5 минут кеш для страниц проверов
 
+import * as cheerio from 'cheerio';
+
 // 🔥 ИДЕАЛЬНЫЙ ПАРСЕР ТАБЛИЦЫ С ДЕТАЛЬНЫМИ ЛОГАМИ
+import cheerio from 'cheerio';
 async function parseProverPage(address: string, timeframe: string = '1w') {
   try {
     console.log(`🔍 [DEBUG] parseProverPage started for ${address} (${timeframe})`);
     
-    // ✅ НОВЫЙ URL - парсим главную страницу с таблицей!
-    const proverPageUrl = `https://explorer.beboundless.xyz/provers?proving-activity-time-range=${timeframe}`;
-    console.log(`📡 [DEBUG] Fetching URL: ${proverPageUrl}`);
+    // Исправленные URL параметры
+    const timeframeMap = {
+      '1d': '24h',
+      '3d': '3d', 
+      '7d': '7d'
+    };
+    const url = `https://explorer.beboundless.xyz/provers?period=${timeframeMap[timeframe] || '24h'}`;
     
-    const response = await fetch(proverPageUrl, {
+    console.log(`🌐 [DEBUG] Fetching URL: ${url}`);
+
+    const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
         'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'cross-site',
-        'Sec-Fetch-User': '?1',
+        'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
-        'Referer': 'https://explorer.beboundless.xyz/',
-        'DNT': '1',
-        'Connection': 'keep-alive'
       },
-      method: 'GET',
-      cache: 'no-store'
     });
 
-    console.log(`📡 [DEBUG] Response status: ${response.status}`);
-    
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      console.log(`❌ [DEBUG] HTTP error: ${response.status}`);
+      return {
+        orders_taken: 0,
+        order_earnings_eth: 0,
+        order_earnings_usd: 0,
+        peak_mhz: 0,
+        success_rate: 0,
+        source: 'http_error',
+        rawData: {
+          fetchedUrl: url,
+          responseStatus: response.status,
+          htmlLength: 0,
+          timeframe: timeframe,
+          searchedAddress: address,
+          foundInTable: false,
+          extractedValues: {},
+          parsedValues: {}
+        }
+      };
     }
 
     const html = await response.text();
     console.log(`📄 [DEBUG] HTML received, length: ${html.length}`);
 
-    // 🔥 ВРЕМЕННАЯ ОТЛАДКА - добавь эти строки
-console.log('🔥 HTML SAMPLE START 🔥');
-console.log(html.substring(0, 2000)); // Первые 2000 символов
-console.log('🔥 HTML SAMPLE END 🔥');
+    // 🔥 ВРЕМЕННАЯ ОТЛАДКА
+    console.log('🔥 HTML SAMPLE START 🔥');
+    console.log(html.substring(0, 2000));
+    console.log('🔥 HTML SAMPLE END 🔥');
 
-// Поиск таблицы
-const tableMatch = html.match(/<table[\s\S]*?<\/table>/i);
-if (tableMatch) {
-  console.log('🔥 TABLE FOUND:', tableMatch[0].substring(0, 1000));
-} else {
-  console.log('🔥 NO TABLE TAG FOUND');
-}
-
+    // Поиск таблицы
+    const tableMatch = html.match(/<table[\s\S]*?<\/table>/i);
+    if (tableMatch) {
+      console.log('🔥 TABLE FOUND:', tableMatch[0].substring(0, 1000));
+    } else {
+      console.log('🔥 NO TABLE TAG FOUND');
+    }
 
     // ✅ НОВАЯ ЛОГИКА - ищем прувера в таблице
     const searchAddress = address.toLowerCase();
@@ -518,54 +531,155 @@ if (tableMatch) {
     console.log('🔥 ADDRESS IN HTML:', html.toLowerCase().includes(searchAddress));
     const shortAddress = `${searchAddress.slice(0, 6)}…${searchAddress.slice(-4)}`; // 0xf0f9…c197
 
-    // 🔥 ДЕБАГ HTML СТРУКТУРЫ (ПОСЛЕ определения переменных)
-    console.log(`🔍 [DEBUG] HTML sample (first 1000 chars):`, html.substring(0, 1000));
-    console.log(`🔍 [DEBUG] Looking for address:`, searchAddress);
-    console.log(`🔍 [DEBUG] Looking for short:`, shortAddress);
+    // 🔍 УЛУЧШЕННАЯ ФУНКЦИЯ ПОИСКА СТРОКИ С CHEERIO
+    const findProverRow = (): string | null => {
+      try {
+        console.log(`🔍 [DEBUG] Starting row extraction with Cheerio...`);
+        
+        const $ = cheerio.load(html);
+        const rows = $('tr');
+        
+        let foundRow: any = null;
+        rows.each((index, element) => {
+          const rowHtml = $(element).html();
+          if (rowHtml && (rowHtml.includes(searchAddress) || rowHtml.includes(shortAddress))) {
+            foundRow = $(element).prop('outerHTML');
+            console.log(`✅ [DEBUG] Found row with Cheerio at index ${index}`);
+            return false; // break из each
+          }
+        });
+        
+        if (foundRow) {
+          return foundRow;
+        }
+        
+        console.log(`❌ [DEBUG] Row not found with Cheerio`);
+        return null;
+      } catch (error) {
+        console.log('❌ [DEBUG] Cheerio parsing failed:', error);
+        return null;
+      }
+    };
 
-    // Ищем где встречается адрес в HTML
-const addressMatches = [];
-let index = html.toLowerCase().indexOf(searchAddress);
-while (index !== -1) {
-  const start = Math.max(0, index - 50);
-  const end = Math.min(html.length, index + 100);
-  addressMatches.push({
-    index,
-    context: html.substring(start, end)
-  });
-  index = html.toLowerCase().indexOf(searchAddress, index + 1);
-}
-console.log(`🔍 [DEBUG] Address contexts found:`, addressMatches);
+    const proverRowData: string | null = findProverRow();
     
-    console.log(`🔍 [DEBUG] Searching for address: ${searchAddress}`);
-    console.log(`🔍 [DEBUG] Short format: ${shortAddress}`);
-    
-    // Проверяем есть ли прувер в HTML
-    const hasFullAddress = html.toLowerCase().includes(searchAddress);
-    const hasShortAddress = html.includes(shortAddress);
-    
-    console.log(`📊 [DEBUG] Found full address: ${hasFullAddress}`);
-    console.log(`📊 [DEBUG] Found short address: ${hasShortAddress}`);
-    
-    if (!hasFullAddress && !hasShortAddress) {
-      console.log(`❌ [DEBUG] Prover ${address} not found in table for timeframe ${timeframe}`);
+    if (!proverRowData) {
+      console.log(`❌ [DEBUG] No row data found for ${address}`);
       return {
         orders_taken: 0,
         order_earnings_eth: 0,
         order_earnings_usd: 0,
         peak_mhz: 0,
         success_rate: 0,
-        source: 'not_found_in_timeframe',
+        source: 'row_extraction_failed',
         rawData: {
-          fetchedUrl: proverPageUrl,
+          fetchedUrl: url,
           responseStatus: response.status,
           htmlLength: html.length,
-          searchedAddress: searchAddress,
-          searchedShort: shortAddress,
-          foundInHtml: false,
-          timeframe: timeframe
+          timeframe: timeframe,
+          searchedAddress: address,
+          foundInTable: false,
+          extractedValues: {},
+          parsedValues: {}
         }
       };
+    }
+
+    // 🚀 ПАРСИНГ ДАННЫХ С CHEERIO
+    console.log(`📊 [DEBUG] Parsing row data with Cheerio...`);
+    
+    const $ = cheerio.load(proverRowData);
+
+    // Находим все ячейки
+    const cells = $('td');
+    console.log(`📊 [DEBUG] Found ${cells.length} cells`);
+
+    // Orders (3-я ячейка, индекс 2)
+   let ordersText = cells.eq(2).text().trim();
+let orders = 0;
+if (/([0-9.]+)K/i.test(ordersText)) {
+  orders = Math.round(parseFloat(ordersText) * 1000);
+} else if (/([0-9.]+)M/i.test(ordersText)) {
+  orders = Math.round(parseFloat(ordersText) * 1_000_000);
+} else {
+  orders = parseInt(ordersText.replace(/\D/g, ''), 10) || 0;
+}
+
+    // ETH earnings (5-я ячейка, индекс 4)
+    const ethEarnings = parseFloat(
+  (cells.eq(4).text().match(/([\d.]+)/)?.[1] || '0')
+) || 0;
+
+    // USDC earnings (6-я ячейка, индекс 5)
+    const usdcEarnings = parseFloat(
+  (cells.eq(5).text().match(/([\d.]+)/)?.[1] || '0')
+) || 0;
+
+    // Peak MHz (8-я ячейка, индекс 7)
+    const peakMHz = parseFloat(
+      cells.eq(7).text().replace('MHz', '').replace(/,/g, '').trim()
+    ) || 0;
+
+    // Success Rate (9-я ячейка, индекс 8)
+    const successRate = parseFloat(
+      cells.eq(8).text().replace('%', '').replace(/,/g, '').trim()
+    ) || 0;
+
+    const results = {
+      orders_taken: orders,
+      order_earnings_eth: ethEarnings,
+      order_earnings_usd: usdcEarnings,
+      peak_mhz: peakMHz,
+      success_rate: successRate,
+      source: 'real_prover_table_parsing',
+      rawData: {
+        fetchedUrl: url,
+        responseStatus: response.status,
+        htmlLength: html.length,
+        timeframe: timeframe,
+        searchedAddress: address,
+        foundInTable: true,
+        extractedValues: {
+          ordersTaken: ordersText,
+          orderEarningsETH: cells.eq(4).text().trim(),
+          orderEarningsUSDC: cells.eq(5).text().trim(),
+          peakMHz: cells.eq(7).text().trim(),
+          successRate: cells.eq(8).text().trim()
+        },
+        parsedValues: {
+          orders,
+          ethEarnings,
+          usdcEarnings,
+          peakMHz,
+          successRate
+        }
+      }
+    };
+
+    console.log(`📊 [DEBUG] Final extracted data for ${timeframe}:`, results);
+    return results;
+
+  } catch (error) {
+    console.error('❌ [DEBUG] parseProverPage error:', error);
+    return {
+      orders_taken: 0,
+      order_earnings_eth: 0,
+      order_earnings_usd: 0,
+      peak_mhz: 0,
+      success_rate: 0,
+      source: 'parsing_error',
+      rawData: {
+        fetchedUrl: '',
+        responseStatus: 0,
+        htmlLength: 0,
+        timeframe: timeframe,
+        searchedAddress: address,
+        foundInTable: false,
+        extractedValues: {},
+        parsedValues: {},
+        error: error instanceof Error ? error.message : String(error)
+      }
+    };
     }
     
     // ✅ УЛУЧШЕННЫЙ ПОИСК СТРОКИ С ПРУВЕРОМ
