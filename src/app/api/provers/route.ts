@@ -983,9 +983,9 @@ if (proverPageData && ((proverPageData.orders_taken || 0) > 0 || (proverPageData
     console.log(`✅ Получены РЕАЛЬНЫЕ данные с страницы провера ${address}:`, proverPageData);
     
     stats.total_orders = Math.max(0, proverPageData.orders_taken || 0);
-    stats.earnings = Math.max(0, parseFloat(proverPageData.order_earnings_usd)) || 0;
-    stats.hash_rate = Math.max(0, parseFloat(proverPageData.peak_mhz)) || 0;
-    stats.uptime = Math.max(0, Math.min(100, parseFloat(proverPageData.success_rate))) || 0;
+    stats.earnings = Math.max(0, proverPageData.order_earnings_usd || 0);
+    stats.hash_rate = Math.max(0, proverPageData.peak_mhz || 0);
+    stats.uptime = Math.max(0, Math.min(100, proverPageData.success_rate || 0));
     stats.successful_orders = Math.floor(stats.total_orders * (stats.uptime / 100));
     stats.last_active = 'Recently active (real data)';
     
