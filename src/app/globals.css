@@ -3,40 +3,123 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ==== Корневой фон и базовые стили ==== */
 html {
   font-family: 'Inter', 'Orbitron', Arial, sans-serif;
-  background: radial-gradient(ellipse 80% 60% at 50% 10%, #28233b 70%, #151226 100%);
+  background:
+    radial-gradient(ellipse 120% 80% at 50% 0%, #23203a 80%, #0a1120 100%),
+    linear-gradient(120deg, #1a1038 0%, #171a32 100%);
   min-height: 100%;
+  scroll-behavior: smooth;
 }
 
 body {
   color: #f1f2f6;
   background: transparent;
+  min-height: 100vh;
+  /* Glass effect для всего body */
+  backdrop-filter: blur(1.5px) saturate(1.06);
 }
 
-/* Дополнительные анимации */
+a {
+  @apply transition-colors duration-200 underline-offset-2;
+}
+a:hover {
+  color: #38fff6;
+  text-shadow: 0 0 6px #38fff6cc, 0 0 18px #b840f4aa;
+}
+
+/* ==== Glassmorphism и кастомные background-утилиты ==== */
+.bg-glassmorphism {
+  background: rgba(28, 34, 50, 0.66);
+  border: 1.5px solid rgba(56, 255, 246, 0.14);
+  backdrop-filter: blur(16px) saturate(1.8);
+}
+
+.bg-glass-blur {
+  background: rgba(20, 22, 40, 0.82);
+  backdrop-filter: blur(8px) saturate(1.18);
+}
+
+/* ==== Кастомный Scrollbar ==== */
+::-webkit-scrollbar {
+  width: 10px;
+  background: rgba(30, 26, 55, 0.9);
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(120deg, #38fff6 0%, #b840f4 80%);
+  border-radius: 6px;
+  box-shadow: 0 0 8px 2px #38fff655;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(120deg, #b840f4 0%, #38fff6 100%);
+}
+
+/* ==== Неоновые тени и эффекты ==== */
+.neon-shadow {
+  text-shadow: 0 0 10px #38fff6cc, 0 0 24px #b840f488;
+}
+
+.drop-shadow-neon {
+  filter: drop-shadow(0 0 7px #38fff6cc) drop-shadow(0 0 18px #b840f4cc);
+}
+
+/* ==== Анимации ==== */
 @keyframes gradient-x {
-  0%, 100% { 
-    background-position: 0% 50%; 
+  0%, 100% {
+    background-position: 0% 50%;
   }
-  50% { 
-    background-position: 100% 50%; 
+  50% {
+    background-position: 100% 50%;
   }
 }
-
 @keyframes neon-pulse {
-  0%, 100% { 
-    filter: drop-shadow(0 0 10px #8b5cf6) drop-shadow(0 0 20px #6366f1);
+  0%, 100% {
+    filter: drop-shadow(0 0 12px #38fff6) drop-shadow(0 0 20px #b840f4);
   }
-  50% { 
-    filter: drop-shadow(0 0 20px #8b5cf6) drop-shadow(0 0 30px #6366f1);
+  50% {
+    filter: drop-shadow(0 0 28px #38fff6) drop-shadow(0 0 36px #b840f4);
   }
 }
 
 .animate-gradient-x {
   animation: gradient-x 3s ease-in-out infinite;
 }
-
 .animate-neon-pulse {
   animation: neon-pulse 2s ease-in-out infinite;
+}
+
+/* ==== Кастомные фоны для карточек ==== */
+.card-bg {
+  background: linear-gradient(135deg, rgba(56,255,246,0.10) 0%, rgba(184,64,244,0.10) 100%);
+  backdrop-filter: blur(18px) saturate(1.35);
+}
+
+/* ==== Placeholder для input ==== */
+input::placeholder {
+  color: #96b1c7 !important;
+  opacity: 1;
+}
+
+/* ==== Micro-interaction для card ==== */
+.card-hover {
+  transition: box-shadow 0.25s, border-color 0.2s, transform 0.16s;
+}
+.card-hover:hover {
+  box-shadow:
+    0 0 20px 3px #38fff6bb,
+    0 0 40px 7px #b840f4bb,
+    0 8px 48px 12px rgba(84,67,255,0.09);
+  border-color: #38fff6cc;
+  transform: scale(1.027) translateY(-8px);
+}
+
+/* ==== Подпись By OveR для адаптива ==== */
+@media (max-width: 600px) {
+  .fixed.top-5.right-8 {
+    top: 10px !important;
+    right: 12px !important;
+    font-size: 10px !important;
+    opacity: 0.78 !important;
+  }
 }
