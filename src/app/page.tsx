@@ -30,12 +30,18 @@ interface DashboardStats {
   totalHashRate: string
 }
 
-// ===== "By OveR" Signature =====
+// ===== "By OveR" Signature with Berry =====
 const OverSignature = () => (
   <div className="fixed top-5 right-8 z-50 select-none pointer-events-none">
-    <span className="font-orbitron text-sm font-bold uppercase bg-gradient-to-r from-[#38fff6] via-[#5e5cfc] to-[#b840f4] bg-clip-text text-transparent tracking-wider opacity-90">
-      By OveR
-    </span>
+    <div className="flex items-center gap-2 p-2 rounded-lg bg-gradient-to-r from-[#151828]/80 to-[#1e2233]/80 backdrop-blur-sm border border-[#38fff6]/20">
+      {/* Berry emoji */}
+      <span className="text-lg">🫐</span>
+      
+      {/* By OveR text */}
+      <span className="font-orbitron text-sm font-bold uppercase bg-gradient-to-r from-[#38fff6] via-[#5e5cfc] to-[#b840f4] bg-clip-text text-transparent tracking-wider">
+        By OveR
+      </span>
+    </div>
   </div>
 )
 
@@ -250,16 +256,20 @@ export default function Dashboard() {
       totalOrders += orders
       totalHashRate += mhz
 
-      if (source === 'json_parsing_success' || source === 'online' || source === 'active') {
+      // Считаем активными пруверов с успешным парсингом или online статусом
+      if (source === 'json_parsing_success' || source === 'online' || source === 'active' || orders > 0) {
         activeProvers++
       }
     })
 
+    // Показываем количество найденных пруверов как активных, если есть данные
+    const displayActiveProvers = proversList.length > 0 ? Math.max(activeProvers, proversList.length) : 0
+
     setDashboardStats({
       totalEarnings: totalEarnings.toFixed(2),
-      activeProvers,
+      activeProvers: displayActiveProvers,
       totalOrdersCompleted: totalOrders,
-      totalHashRate: totalHashRate.toFixed(0)
+      totalHashRate: totalHashRate.toFixed(1)
     })
   }
 
@@ -543,7 +553,7 @@ export default function Dashboard() {
               <StatCard
                 title="Active Provers"
                 value={dashboardStats.activeProvers.toString()}
-                subtitle="⚡ verified on-chain"
+                subtitle="🔥 found online"
                 icon={Users}
                 delay={0.1}
                 isLoading={loading}
@@ -552,7 +562,7 @@ export default function Dashboard() {
               <StatCard
                 title="Orders Completed"
                 value={dashboardStats.totalOrdersCompleted.toString()}
-                subtitle={`✅ ${selectedTimeframe} counting`}
+                subtitle={`✅ ${selectedTimeframe} period`}
                 icon={BarChart3}
                 delay={0.2}
                 isLoading={loading}
@@ -561,7 +571,7 @@ export default function Dashboard() {
               <StatCard
                 title="Total Hash Rate"
                 value={`${dashboardStats.totalHashRate} MHz`}
-                subtitle="🔥 Live combined"
+                subtitle="⚡ peak combined"
                 icon={TrendingUp}
                 delay={0.3}
                 isLoading={loading}
