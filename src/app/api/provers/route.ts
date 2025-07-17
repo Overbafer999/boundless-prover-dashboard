@@ -69,12 +69,12 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
       };
     }
 
-    // --- НОВЫЙ JSON ПАРСЕР --- //
+    // --- СУПЕР JSON ПАРСЕР --- //
     console.log('🔥 PARSING JSON DATA FROM HTML...');
     
-    // Ищем JSON данные в формате: "0xADDRESS":{"24h":{...},"7d":{...}}
+    // Ищем JSON данные в формате: "0xADDRESS":{"1h":{...},"24h":{...},"7d":{...}}
     const addressPattern = `"${searchAddressLower}":{`;
-    const addressIndex = html.toLowerCase().indexOf(addressPattern);
+    const addressIndex = html.indexOf(addressPattern);
     
     if (addressIndex === -1) {
       console.log('❌ JSON pattern not found for address');
@@ -98,18 +98,39 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
 
     console.log('✅ JSON pattern found at position:', addressIndex);
 
-    // Извлекаем JSON объект
+    // Извлекаем JSON объект с умным парсингом
     const jsonStart = addressIndex + addressPattern.length - 1; // Позиция открывающей скобки {
     let braceCount = 0;
     let jsonEnd = jsonStart;
+    let inString = false;
+    let escapeNext = false;
     
-    // Ищем конец JSON объекта
+    // Умный поиск конца JSON объекта с учетом строк
     for (let i = jsonStart; i < html.length; i++) {
-      if (html[i] === '{') braceCount++;
-      if (html[i] === '}') braceCount--;
-      if (braceCount === 0) {
-        jsonEnd = i + 1;
-        break;
+      const char = html[i];
+      
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+      
+      if (char === '\\') {
+        escapeNext = true;
+        continue;
+      }
+      
+      if (char === '"' && !escapeNext) {
+        inString = !inString;
+        continue;
+      }
+      
+      if (!inString) {
+        if (char === '{') braceCount++;
+        if (char === '}') braceCount--;
+        if (braceCount === 0) {
+          jsonEnd = i + 1;
+          break;
+        }
       }
     }
 
@@ -127,12 +148,13 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
     }
 
     const jsonStr = html.substring(jsonStart, jsonEnd);
-    console.log('📊 Extracted JSON string (first 200 chars):', jsonStr.substring(0, 200));
+    console.log('📊 Extracted JSON string (first 300 chars):', jsonStr.substring(0, 300));
 
     let proverData: any;
     try {
       proverData = JSON.parse(jsonStr);
       console.log('✅ JSON PARSED SUCCESSFULLY!');
+      console.log('📊 Available timeframes:', Object.keys(proverData));
     } catch (parseError) {
       console.error('❌ JSON Parse error:', parseError);
       return {
@@ -180,21 +202,21 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
     const maxMhz = timeframeData.maxMhz || 0;
     const successRate = timeframeData.successRate || 0;
 
-    // Конвертируем orderEarnings из wei в ETH (предполагаем что это wei)
+    // Конвертируем orderEarnings из wei в ETH 
+    // Пример: 3556484038158 wei = 0.003556484038158 ETH
     const orderEarningsEth = orderEarnings > 0 ? orderEarnings / 1e18 : 0;
     
-    // Примерная конвертация в USD (можно улучшить через реальный курс ETH)
-    const ethToUsd = 2400; // Примерный курс ETH/USD
+    // Конвертация в USD (курс ETH ≈ $2400)
+    const ethToUsd = 2400;
     const orderEarningsUsd = orderEarningsEth * ethToUsd;
 
-    console.log('🎯 EXTRACTED VALUES:', {
-      orderCount,
-      orderEarnings,
-      orderEarningsEth,
-      orderEarningsUsd,
-      maxMhz,
-      successRate
-    });
+    console.log('🎯 FINAL EXTRACTED VALUES:');
+    console.log('  Orders:', orderCount);
+    console.log('  Earnings (wei):', orderEarnings);
+    console.log('  Earnings (ETH):', orderEarningsEth);
+    console.log('  Earnings (USD):', orderEarningsUsd);
+    console.log('  Max MHz:', maxMhz);
+    console.log('  Success Rate:', successRate);
 
     return {
       orders_taken: orderCount,
