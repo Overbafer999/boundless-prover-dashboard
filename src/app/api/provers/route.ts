@@ -105,63 +105,42 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
       const $ = cheerio.load(html);
       console.log('✅ Cheerio loaded successfully');
       
-      // Ищем все строки таблицы
-      const rows = $('tbody tr');
-      console.log('📊 Found table rows:', rows.length);
-      rowsCount = rows.length; // СОХРАНЯЕМ КОЛИЧЕСТВО СТРОК
+      // Ищем все строки таблицы - ИСПРАВЛЕННЫЕ СЕЛЕКТОРЫ
+      let rows = $('tbody tr');
+      console.log('📊 Found tbody tr rows:', rows.length);
+      rowsCount = rows.length;
       
-      // Если нет строк, попробуем другие селекторы
+      // Если нет tbody tr, пробуем другие селекторы
+      if (rows.length === 0) {
+        rows = $('table tr');
+        console.log('📊 Found table tr rows:', rows.length);
+        rowsCount = rows.length;
+      }
+      
+      if (rows.length === 0) {
+        rows = $('tr').filter((i, el) => $(el).find('td').length >= 9);
+        console.log('📊 Found filtered tr rows (9+ cells):', rows.length);
+        rowsCount = rows.length;
+      }
+      
       if (rows.length === 0) {
         const allRows = $('tr');
         console.log('📊 Found ANY tr elements:', allRows.length);
-        rowsCount = allRows.length; // ОБНОВЛЯЕМ СЧЕТЧИК
+        rowsCount = allRows.length;
         
+        // Используем любые TR если есть
+        if (allRows.length > 0) {
+          rows = allRows;
+        }
+      }
+      
+      // Если нет строк, попробуем другие селекторы  
+      if (rows.length === 0) {
+        console.log('❌ NO ROWS FOUND WITH ANY SELECTOR!');
         const tableElement = $('table');
         console.log('📊 Found table elements:', tableElement.length);
-        
-        // ПРОБУЕМ ПАРСИТЬ ЛЮБЫЕ TR
-        if (allRows.length > 0) {
-          console.log('🔥 TRYING TO PARSE ANY TR ELEMENTS...');
-          allRows.each((index, element) => {
-            const row = $(element);
-            const cells = row.find('td');
-            
-            if (cells.length >= 9 && !addressFound) {
-              console.log(`🔍 ANY Row ${index} has ${cells.length} cells`);
-              // Проверяем 2-ю колонку (адрес) - индекс 1
-              const addressCell = $(cells[1]);
-              const cellHtml = addressCell.html();
-              console.log(`🔍 ANY Row ${index} address cell HTML:`, cellHtml?.substring(0, 200));
-              
-              // Ищем span с title
-              const spanWithTitle = addressCell.find('span[title]');
-              if (spanWithTitle.length > 0) {
-                const fullAddress = spanWithTitle.attr('title') || '';
-                console.log(`   ANY Row ${index} span title: "${fullAddress}"`);
-                
-                if (fullAddress && fullAddress.toLowerCase() === searchAddressLower) {
-                  console.log('🎯 FOUND IN ANY TR!');
-                  addressFound = true;
-                  
-                  // Извлекаем данные
-                  const ordersText = $(cells[2]).text().trim();
-                  console.log('📊 Orders from ANY TR:', ordersText);
-                  
-                  if (ordersText && ordersText !== '-') {
-                    if (ordersText.includes('K')) {
-                      foundOrdersTaken = Math.round(parseFloat(ordersText.replace('K', '')) * 1000);
-                    } else if (ordersText.includes('M')) {
-                      foundOrdersTaken = Math.round(parseFloat(ordersText.replace('M', '')) * 1000000);
-                    } else {
-                      foundOrdersTaken = parseInt(ordersText.replace(/[^\d]/g, '')) || 0;
-                    }
-                  }
-                  
-                  foundData = { method: 'any_tr', ordersText, cellHtml: cellHtml?.substring(0, 200) };
-                }
-              }
-            }
-          });
+        if (tableElement.length > 0) {
+          console.log('📝 Table HTML sample:', tableElement.html()?.substring(0, 500));
         }
       }
 
