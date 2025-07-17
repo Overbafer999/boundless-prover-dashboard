@@ -305,39 +305,102 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
     } catch (cheerioError) {
       console.error('❌ CHEERIO FAILED:', cheerioError);
       
-      // FALLBACK: STRING PARSING
+      // FALLBACK: STRING PARSING БЕЗ CHEERIO
       console.log('🔥 TRYING STRING PARSING FALLBACK...');
       
-      // Ищем адрес и извлекаем строку таблицы вокруг него
+      // Ищем адрес в HTML
       const addressIndex = html.toLowerCase().indexOf(searchAddressLower);
       if (addressIndex !== -1) {
         console.log('📍 Address found at position:', addressIndex);
         
-        // Извлекаем контекст вокруг адреса
-        const contextStart = Math.max(0, addressIndex - 500);
-        const contextEnd = Math.min(html.length, addressIndex + 500);
+        // Извлекаем большой контекст вокруг адреса (вся строка таблицы)
+        const contextStart = Math.max(0, addressIndex - 2000);
+        const contextEnd = Math.min(html.length, addressIndex + 2000);
         const context = html.substring(contextStart, contextEnd);
-        console.log('📝 Context around address:', context);
+        console.log('📝 Context around address (4000 chars):', context.substring(0, 1000));
         
-        // Простая проверка - есть ли числа рядом с адресом
-        const numbersNearAddress = context.match(/(\d+(?:\.\d+)?[KM]?)/g);
-        if (numbersNearAddress && numbersNearAddress.length > 0) {
-          console.log('🔢 Numbers found near address:', numbersNearAddress);
+        // Ищем строку таблицы содержащую адрес
+        const beforeAddress = html.substring(0, addressIndex);
+        const afterAddress = html.substring(addressIndex);
+        
+        // Находим начало строки (<tr)
+        const trStartIndex = beforeAddress.lastIndexOf('<tr');
+        // Находим конец строки (</tr>)
+        const trEndIndex = afterAddress.indexOf('</tr>');
+        
+        if (trStartIndex !== -1 && trEndIndex !== -1) {
+          const rowHtml = html.substring(trStartIndex, addressIndex + trEndIndex + 5);
+          console.log('🎯 FOUND TABLE ROW HTML:', rowHtml.substring(0, 500));
           
-          // Берем первое число как orders
-          const firstNumber = numbersNearAddress[0];
-          if (firstNumber.includes('K')) {
-            foundOrdersTaken = Math.round(parseFloat(firstNumber.replace('K', '')) * 1000);
-          } else if (firstNumber.includes('M')) {
-            foundOrdersTaken = Math.round(parseFloat(firstNumber.replace('M', '')) * 1000000);
-          } else {
-            foundOrdersTaken = parseInt(firstNumber) || 0;
+          // Парсим ячейки через регулярку
+          const cellMatches = rowHtml.match(/<td[^>]*>(.*?)<\/td>/g);
+          if (cellMatches && cellMatches.length >= 9) {
+            console.log('📊 Found cells:', cellMatches.length);
+            
+            // Извлекаем текст из ячеек
+            const cells = cellMatches.map(cell => {
+              // Убираем теги и извлекаем только текст
+              return cell.replace(/<[^>]*>/g, '').trim();
+            });
+            
+            console.log('📊 Cell contents:', cells);
+            
+            // Ищем orders в 3-й ячейке (индекс 2)
+            const ordersText = cells[2] || '';
+            console.log('📊 Orders text:', ordersText);
+            
+            if (ordersText && ordersText !== '-') {
+              if (ordersText.includes('K')) {
+                foundOrdersTaken = Math.round(parseFloat(ordersText.replace('K', '').replace(',', '')) * 1000);
+              } else if (ordersText.includes('M')) {
+                foundOrdersTaken = Math.round(parseFloat(ordersText.replace('M', '').replace(',', '')) * 1000000);
+              } else {
+                const numMatch = ordersText.match(/[\d,]+/);
+                if (numMatch) {
+                  foundOrdersTaken = parseInt(numMatch[0].replace(/,/g, '')) || 0;
+                }
+              }
+            }
+            
+            // Ищем ETH в 5-й ячейке (индекс 4)
+            const ethText = cells[4] || '';
+            const ethMatch = ethText.match(/([\d.]+)/);
+            if (ethMatch) {
+              foundEthEarnings = parseFloat(ethMatch[1]);
+            }
+            
+            // Ищем USDC в 6-й ячейке (индекс 5)  
+            const usdcText = cells[5] || '';
+            const usdcMatch = usdcText.match(/([\d.]+)/);
+            if (usdcMatch) {
+              foundUsdcEarnings = parseFloat(usdcMatch[1]);
+            }
+            
+            // Ищем success rate в последней ячейке
+            const successText = cells[cells.length - 1] || '';
+            const successMatch = successText.match(/([\d.]+)/);
+            if (successMatch) {
+              foundSuccessRate = parseFloat(successMatch[1]);
+            }
+            
+            addressFound = true;
+            foundData = { 
+              method: 'string_parsing', 
+              cells: cells,
+              ordersText,
+              ethText,
+              usdcText,
+              successText,
+              rowHtml: rowHtml.substring(0, 500)
+            };
+            
+            console.log('✅ String parsing SUCCESS:', {
+              ordersTaken: foundOrdersTaken,
+              ethEarnings: foundEthEarnings,
+              usdcEarnings: foundUsdcEarnings,
+              successRate: foundSuccessRate
+            });
           }
-          
-          addressFound = true;
-          foundData = { context, numbersFound: numbersNearAddress };
-          
-          console.log('✅ String parsing extracted orders:', foundOrdersTaken);
         }
       }
     }
