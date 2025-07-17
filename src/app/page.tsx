@@ -198,7 +198,7 @@ const ProverCard = ({ prover, index }: { prover: ProverData; index: number }) =>
 // ===== MAIN DASHBOARD =====
 export default function Dashboard() {
   const [provers, setProvers] = useState<ProverData[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false) // Изменили на false
   const [lastUpdated, setLastUpdated] = useState<string>('')
   const [isDataVisible, setIsDataVisible] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -211,13 +211,16 @@ export default function Dashboard() {
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true)
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
   
-  // Dashboard статистика - БУДЕТ ВЫЧИСЛЯТЬСЯ ИЗ РЕАЛЬНЫХ ДАННЫХ
+  // Dashboard статистика - показываем только при поиске
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     totalEarnings: "0",
     activeProvers: 0,
     totalOrdersCompleted: 0,
     totalHashRate: "0"
   })
+  
+  // Показываем статистику только если есть поиск
+  const [showStats, setShowStats] = useState(false)
 
   // Форматирование времени
   const formatTime = (date: Date) => {
@@ -308,11 +311,13 @@ export default function Dashboard() {
   const performSearch = async (searchQuery: string) => {
     if (!searchQuery.trim()) {
       setSearchResults([])
+      setShowStats(false)
       return
     }
 
     console.log(`🔍 Searching for: ${searchQuery} (${selectedTimeframe})`)
     setIsSearching(true)
+    setShowStats(true) // Показываем статистику при поиске
 
     try {
       const response = await fetch(`/api/provers?q=${encodeURIComponent(searchQuery)}&timeframe=${selectedTimeframe}&blockchain=true&realdata=true`)
@@ -392,10 +397,7 @@ export default function Dashboard() {
         performSearch(searchTerm)
       } else {
         setSearchResults([])
-        // Если нет поиска, показываем статистику основных данных
-        if (provers.length > 0) {
-          calculateStats(provers)
-        }
+        setShowStats(false) // Скрываем статистику если нет поиска
       }
     }, 500)
 
@@ -437,20 +439,26 @@ export default function Dashboard() {
     }
   }, [autoRefreshEnabled])
 
-  // Загрузка данных при изменении timeframe
+  // Загрузка данных при изменении timeframe - УБИРАЕМ АВТОЗАГРУЗКУ
   useEffect(() => {
-    console.log(`🚀 Loading data for ${selectedTimeframe}...`)
-    fetchData()
+    // Убираем автозагрузку при смене timeframe
+    // console.log(`🚀 Loading data for ${selectedTimeframe}...`)
+    // fetchData()
+    
+    // Если есть поиск, перезапускаем поиск с новым timeframe
+    if (searchTerm) {
+      performSearch(searchTerm)
+    }
   }, [selectedTimeframe])
 
   // Обработка данных для отображения
-  const displayProvers = searchTerm ? searchResults : provers
+  const displayProvers = searchResults // Показываем только результаты поиска
   const source = displayProvers.length > 0 && displayProvers[0].source ? 
-    displayProvers[0].source : 'supabase_fallback'
+    displayProvers[0].source : 'no_search'
 
   return (
     <>
-      <OverSignature />
+      {/* Убираем OverSignature */}
       <div className="min-h-screen bg-[#0a1120] pt-2 pb-12 px-4 space-y-8">
         
         {/* Hero Section */}
@@ -471,7 +479,7 @@ export default function Dashboard() {
           </motion.h1>
           
           <p className="text-xl text-gray-300 max-w-2xl mx-auto mb-6">
-            Monitor provers with real-time blockchain integration on Base network
+            Enter any Ethereum address to get real-time prover data from Base network
           </p>
           
           {/* Секция с кнопками управления */}
@@ -482,11 +490,13 @@ export default function Dashboard() {
                 Last updated: <span className="text-cyan-400">{lastUpdated}</span>
               </span>
               <span className={`text-xs px-2 py-1 rounded ${
-                source === 'supabase_fallback' 
+                source === 'no_search' 
+                  ? 'bg-gray-500/20 text-gray-400' 
+                  : source === 'supabase_fallback' 
                   ? 'bg-yellow-500/20 text-yellow-400' 
                   : 'bg-green-500/20 text-green-400'
               }`}>
-                {source === 'supabase_fallback' ? 'SUPABASE_FALLBACK' : 'LIVE_DATA'}
+                {source === 'no_search' ? 'READY' : source === 'supabase_fallback' ? 'SUPABASE_FALLBACK' : 'LIVE_DATA'}
               </span>
             </div>
             
@@ -532,9 +542,9 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* Stats Overview - ОБНОВЛЕННАЯ СТАТИСТИКА */}
+        {/* Stats Overview - показываем только при поиске */}
         <AnimatePresence>
-          {isDataVisible && (
+          {isDataVisible && showStats && (
             <motion.div 
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12"
               initial={{ opacity: 0, y: 20 }}
@@ -668,45 +678,79 @@ export default function Dashboard() {
                     )}
                   </div>
                 )}
-              </div>
 
-              {/* Provers List */}
-              <div>
-                <motion.h2 
-                  className="text-3xl font-orbitron font-bold text-white flex items-center gap-3 mb-6 justify-center"
-                  style={{ textShadow: '0 0 16px #38fff6aa' }}
-                >
-                  <Zap className="w-8 h-8 text-[#38fff6]" />
-                  {searchTerm ? 'Search Results' : 'Live Provers'} ({displayProvers.length})
-                </motion.h2>
-                
-                {loading ? (
-                  <div className="flex items-center justify-center p-8">
-                    <div className="rounded-full h-8 w-8 border-2 border-[#38fff6] border-t-transparent animate-spin" />
-                    <span className="ml-3 text-gray-400">Loading real-time blockchain data...</span>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {displayProvers.length > 0 ? (
-                      displayProvers.map((prover, index) => (
-                        <ProverCard key={prover.id || index} prover={prover} index={index} />
-                      ))
-                    ) : searchTerm ? (
-                      <div className="col-span-full text-center py-12 text-gray-400">
-                        <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                        <p className="text-lg mb-2">No provers found for "{searchTerm}" ({selectedTimeframe})</p>
-                        <p className="text-sm">Try entering a valid Ethereum address (0x...)</p>
-                      </div>
-                    ) : (
-                      <div className="col-span-full text-center py-12 text-gray-400">
-                        <Zap className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                        <p className="text-lg">No provers available</p>
-                        <p className="text-sm mt-2">Enter a prover address in the search box for instant lookup</p>
-                      </div>
-                    )}
+                {/* Подсказка для пользователей */}
+                {!searchTerm && (
+                  <div className="mt-4 text-center">
+                    <p className="text-sm text-gray-400 mb-2">
+                      💡 Enter any Ethereum address (0x...) to get real-time prover data
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Example: 0xb607e44023f850d5833c0d1a5d62acad3a5b162e
+                    </p>
                   </div>
                 )}
               </div>
+
+              {/* Provers List - показываем только при поиске */}
+              {searchTerm && (
+                <div>
+                  <motion.h2 
+                    className="text-3xl font-orbitron font-bold text-white flex items-center gap-3 mb-6 justify-center"
+                    style={{ textShadow: '0 0 16px #38fff6aa' }}
+                  >
+                    <Zap className="w-8 h-8 text-[#38fff6]" />
+                    Search Results ({displayProvers.length})
+                  </motion.h2>
+                  
+                  {isSearching ? (
+                    <div className="flex items-center justify-center p-8">
+                      <div className="rounded-full h-8 w-8 border-2 border-[#38fff6] border-t-transparent animate-spin" />
+                      <span className="ml-3 text-gray-400">Searching blockchain data...</span>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                      {displayProvers.length > 0 ? (
+                        displayProvers.map((prover, index) => (
+                          <ProverCard key={prover.id || index} prover={prover} index={index} />
+                        ))
+                      ) : (
+                        <div className="col-span-full text-center py-12 text-gray-400">
+                          <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                          <p className="text-lg mb-2">No provers found for "{searchTerm}" ({selectedTimeframe})</p>
+                          <p className="text-sm">Try entering a valid Ethereum address (0x...)</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Заглушка когда нет поиска */}
+              {!searchTerm && (
+                <div className="text-center py-16">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="max-w-md mx-auto"
+                  >
+                    <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-r from-[#38fff6]/20 to-[#b840f4]/20 flex items-center justify-center">
+                      <Search className="w-10 h-10 text-[#38fff6]" />
+                    </div>
+                    <h3 className="text-2xl font-orbitron font-bold text-white mb-4">
+                      Ready to search provers
+                    </h3>
+                    <p className="text-gray-400 mb-6">
+                      Enter any Ethereum address in the search box above to get real-time prover data from the Base network
+                    </p>
+                    <div className="text-sm text-gray-500">
+                      <p>• Real-time blockchain data</p>
+                      <p>• Multiple time periods (1d, 3d, 1w)</p>
+                      <p>• Detailed prover statistics</p>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -722,8 +766,9 @@ export default function Dashboard() {
             💡 <strong>Live Blockchain Integration:</strong> Enter Ethereum addresses (0x...) for real-time Base network data
           </p>
           <p className="text-xs text-green-400 mt-2">
-            ✅ Data source: {source.replace('_', ' ').toUpperCase()} • Period: {selectedTimeframe === '1d' ? '1 Day' : selectedTimeframe === '3d' ? '3 Days' : '1 Week'}
+            ✅ Ready to search • Period: {selectedTimeframe === '1d' ? '1 Day' : selectedTimeframe === '3d' ? '3 Days' : '1 Week'}
             • Auto-refresh: {autoRefreshEnabled ? 'ON (15min)' : 'OFF'}
+            {searchTerm && ` • Source: ${source.replace('_', ' ').toUpperCase()}`}
           </p>
         </motion.div>
       </div>
