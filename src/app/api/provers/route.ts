@@ -72,12 +72,69 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
     // --- СУПЕР JSON ПАРСЕР --- //
     console.log('🔥 PARSING JSON DATA FROM HTML...');
     
-    // Ищем JSON данные в формате: "0xADDRESS":{"1h":{...},"24h":{...},"7d":{...}}
-    const addressPattern = `"${searchAddressLower}":{`;
-    const addressIndex = html.indexOf(addressPattern);
+    // Пробуем разные варианты поиска адреса
+    const searchPatterns = [
+      `"${searchAddress}":{`,           // Оригинальный регистр
+      `"${searchAddressLower}":{`,      // Нижний регистр  
+      `"${searchAddress.toUpperCase()}":{`,  // Верхний регистр
+      `\\"${searchAddress}\\":{`,       // С экранированием
+      `\\"${searchAddressLower}\\":{`,  // С экранированием + нижний регистр
+    ];
+    
+    let addressIndex = -1;
+    let usedPattern = '';
+    
+    // Пробуем все паттерны
+    for (const pattern of searchPatterns) {
+      addressIndex = html.indexOf(pattern);
+      if (addressIndex !== -1) {
+        usedPattern = pattern;
+        console.log('✅ Found pattern:', pattern, 'at position:', addressIndex);
+        break;
+      }
+    }
+    
+    // Если не нашли точные паттерны, ищем просто адрес в JSON контексте
+    if (addressIndex === -1) {
+      console.log('🔍 Trying broader search for address...');
+      
+      // Ищем адрес где угодно в HTML
+      const simpleAddressIndex = html.indexOf(searchAddress);
+      const simpleAddressIndexLower = html.toLowerCase().indexOf(searchAddressLower);
+      
+      if (simpleAddressIndex !== -1) {
+        console.log('📍 Found address at position:', simpleAddressIndex);
+        
+        // Ищем контекст вокруг адреса
+        const context = html.substring(Math.max(0, simpleAddressIndex - 200), simpleAddressIndex + 300);
+        console.log('📝 Context around address:', context);
+        
+        // Ищем ближайший JSON объект после адреса
+        const afterAddress = html.substring(simpleAddressIndex);
+        const jsonStartIndex = afterAddress.search(/:\s*\{/);
+        
+        if (jsonStartIndex !== -1) {
+          addressIndex = simpleAddressIndex + jsonStartIndex + 1; // Позиция после ':'
+          usedPattern = 'context_search';
+          console.log('✅ Found JSON context at position:', addressIndex);
+        }
+      } else if (simpleAddressIndexLower !== -1) {
+        console.log('📍 Found address (lowercase) at position:', simpleAddressIndexLower);
+        const afterAddress = html.substring(simpleAddressIndexLower);
+        const jsonStartIndex = afterAddress.search(/:\s*\{/);
+        
+        if (jsonStartIndex !== -1) {
+          addressIndex = simpleAddressIndexLower + jsonStartIndex + 1;
+          usedPattern = 'context_search_lower';
+          console.log('✅ Found JSON context (lowercase) at position:', addressIndex);
+        }
+      }
+    }
     
     if (addressIndex === -1) {
       console.log('❌ JSON pattern not found for address');
+      console.log('🔍 Tried patterns:', searchPatterns);
+      
       return {
         orders_taken: 0,
         order_earnings_eth: 0,
@@ -91,15 +148,29 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
           mappedTimeframe, 
           htmlLength: html.length,
           addressInHtml,
-          pattern: addressPattern
+          triedPatterns: searchPatterns,
+          usedPattern
         }
       };
     }
 
-    console.log('✅ JSON pattern found at position:', addressIndex);
+    console.log('✅ JSON pattern found at position:', addressIndex, 'using pattern:', usedPattern);
 
-    // Извлекаем JSON объект с умным парсингом
-    const jsonStart = addressIndex + addressPattern.length - 1; // Позиция открывающей скобки {
+    // Определяем начало JSON объекта
+    let jsonStart = addressIndex;
+    
+    // Если использовали context search, ищем начало объекта
+    if (usedPattern.includes('context_search')) {
+      // Ищем открывающую скобку после двоеточия
+      const afterColon = html.substring(addressIndex);
+      const braceIndex = afterColon.indexOf('{');
+      if (braceIndex !== -1) {
+        jsonStart = addressIndex + braceIndex;
+      }
+    } else {
+      // Для точных паттернов, находим позицию открывающей скобки
+      jsonStart = addressIndex + usedPattern.length - 1;
+    }
     let braceCount = 0;
     let jsonEnd = jsonStart;
     let inString = false;
