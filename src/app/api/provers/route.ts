@@ -220,28 +220,72 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
 
     const jsonStr = html.substring(jsonStart, jsonEnd);
     console.log('📊 Extracted JSON string (first 300 chars):', jsonStr.substring(0, 300));
+    console.log('📊 JSON string length:', jsonStr.length);
+
+    // Очищаем JSON от экранированных символов
+    let cleanJsonStr = jsonStr;
+    
+    // Убираем экранированные кавычки
+    cleanJsonStr = cleanJsonStr.replace(/\\"/g, '"');
+    
+    // Убираем экранированные слеши
+    cleanJsonStr = cleanJsonStr.replace(/\\\\/g, '\\');
+    
+    console.log('🧹 Cleaned JSON (first 300 chars):', cleanJsonStr.substring(0, 300));
 
     let proverData: any;
     try {
-      proverData = JSON.parse(jsonStr);
+      proverData = JSON.parse(cleanJsonStr);
       console.log('✅ JSON PARSED SUCCESSFULLY!');
       console.log('📊 Available timeframes:', Object.keys(proverData));
     } catch (parseError) {
       console.error('❌ JSON Parse error:', parseError);
-      return {
-        orders_taken: 0,
-        order_earnings_eth: 0,
-        order_earnings_usd: 0,
-        peak_mhz: 0,
-        success_rate: 0,
-        source: 'json_parse_error',
-        debug: { 
-          searchAddress, 
-          timeframe, 
-          error: parseError instanceof Error ? parseError.message : String(parseError),
-          jsonSample: jsonStr.substring(0, 500)
-        }
-      };
+      console.log('📝 Trying to fix incomplete JSON...');
+      
+      // Пробуем исправить неполный JSON
+      let fixedJsonStr = cleanJsonStr;
+      
+      // Если JSON обрезается, добавляем недостающие закрывающие скобки
+      let openBraces = (fixedJsonStr.match(/\{/g) || []).length;
+      let closeBraces = (fixedJsonStr.match(/\}/g) || []).length;
+      
+      console.log('🔍 Open braces:', openBraces, 'Close braces:', closeBraces);
+      
+      // Добавляем недостающие скобки
+      while (openBraces > closeBraces) {
+        fixedJsonStr += '}';
+        closeBraces++;
+      }
+      
+      // Убираем последнюю запятую если есть
+      fixedJsonStr = fixedJsonStr.replace(/,\s*}$/g, '}');
+      
+      console.log('🔧 Fixed JSON (last 100 chars):', fixedJsonStr.slice(-100));
+      
+      try {
+        proverData = JSON.parse(fixedJsonStr);
+        console.log('✅ FIXED JSON PARSED SUCCESSFULLY!');
+        console.log('📊 Available timeframes:', Object.keys(proverData));
+      } catch (secondError) {
+        console.error('❌ Second parse attempt failed:', secondError);
+        return {
+          orders_taken: 0,
+          order_earnings_eth: 0,
+          order_earnings_usd: 0,
+          peak_mhz: 0,
+          success_rate: 0,
+          source: 'json_parse_error',
+          debug: { 
+            searchAddress, 
+            timeframe, 
+            error: secondError instanceof Error ? secondError.message : String(secondError),
+            jsonSample: cleanJsonStr.substring(0, 500),
+            fixedJsonSample: fixedJsonStr.substring(0, 500),
+            openBraces,
+            closeBraces
+          }
+        };
+      }
     }
 
     // Извлекаем данные для нужного timeframe
