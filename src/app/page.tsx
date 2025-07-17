@@ -770,6 +770,20 @@ export default function Dashboard() {
             • Auto-refresh: {autoRefreshEnabled ? 'ON (15min)' : 'OFF'}
             {searchTerm && ` • Source: ${source.replace('_', ' ').toUpperCase()}`}
           </p>
+          
+          {/* By OveR signature в футере */}
+          <motion.div 
+            className="flex items-center justify-center gap-2 mt-6 p-3 rounded-xl bg-gradient-to-r from-[#151828]/60 to-[#1e2233]/60 backdrop-blur-sm border border-[#38fff6]/20 max-w-xs mx-auto"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.5 }}
+            whileHover={{ scale: 1.05 }}
+          >
+            <span className="text-xl">🫐</span>
+            <span className="font-orbitron text-sm font-bold uppercase bg-gradient-to-r from-[#38fff6] via-[#5e5cfc] to-[#b840f4] bg-clip-text text-transparent tracking-wider">
+              By OveR
+            </span>
+          </motion.div>
         </motion.div>
       </div>
     </>
