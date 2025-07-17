@@ -1,4 +1,4 @@
-// src/app/page.tsx — ОПТИМИЗИРОВАННАЯ ВЕРСИЯ БЕЗ МУСОРА
+// src/app/page.tsx — ИСПРАВЛЕННАЯ ВЕРСИЯ С КНОПКАМИ РЯДОМ С ПОИСКОМ
 'use client'
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -41,7 +41,7 @@ const OverSignature = () => (
 
 // ===== StatusBadge =====
 const StatusBadge = ({ status }: { status: string }) => {
-  const isActive = status === 'online' || status === 'active' || status === 'real_prover_table_parsing'
+  const isActive = status === 'online' || status === 'active' || status === 'json_parsing_success'
   const bgColor = isActive ? 'bg-emerald-500/20' : 'bg-red-500/20'
   const textColor = isActive ? 'text-emerald-400' : 'text-red-400'
   const borderColor = isActive ? 'border-emerald-500/50' : 'border-red-500/50'
@@ -182,7 +182,7 @@ const ProverCard = ({ prover, index }: { prover: ProverData; index: number }) =>
       <div className="pt-3 border-t border-gray-600/30">
         <div className="flex justify-between items-center">
           <span className="text-xs text-gray-500">Peak MHz: {peakMhz.toFixed(2)}</span>
-          <div className={`w-3 h-3 rounded-full ${source === 'real_prover_table_parsing' ? 'bg-emerald-400' : 'bg-red-400'}`} />
+          <div className={`w-3 h-3 rounded-full ${source === 'json_parsing_success' ? 'bg-emerald-400' : 'bg-red-400'}`} />
         </div>
       </div>
     </motion.div>
@@ -201,16 +201,16 @@ export default function Dashboard() {
   const [isSearching, setIsSearching] = useState(false)
   const [selectedTimeframe, setSelectedTimeframe] = useState<'1d' | '3d' | '1w'>('1d')
   
-  // Автообновление состояния
+  // Автообновление состояние
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true)
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
   
-  // Dashboard статистика
+  // Dashboard статистика - БУДЕТ ВЫЧИСЛЯТЬСЯ ИЗ РЕАЛЬНЫХ ДАННЫХ
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     totalEarnings: "0",
-    activeProvers: 12,
-    totalOrdersCompleted: 1,
-    totalHashRate: "13181"
+    activeProvers: 0,
+    totalOrdersCompleted: 0,
+    totalHashRate: "0"
   })
 
   // Форматирование времени
@@ -219,6 +219,47 @@ export default function Dashboard() {
       hour: '2-digit', 
       minute: '2-digit', 
       second: '2-digit' 
+    })
+  }
+
+  // Вычисление статистики из реальных данных
+  const calculateStats = (proversList: ProverData[]) => {
+    if (proversList.length === 0) {
+      setDashboardStats({
+        totalEarnings: "0",
+        activeProvers: 0,
+        totalOrdersCompleted: 0,
+        totalHashRate: "0"
+      })
+      return
+    }
+
+    let totalEarnings = 0
+    let activeProvers = 0
+    let totalOrders = 0
+    let totalHashRate = 0
+
+    proversList.forEach(prover => {
+      const rawData = prover.raw_parsed_data || prover.extractedValues || prover
+      const usdEarnings = rawData.order_earnings_usd || prover.order_earnings_usd || 0
+      const orders = rawData.orders_taken || prover.orders_taken || 0
+      const mhz = rawData.peak_mhz || prover.peak_mhz || 0
+      const source = prover.source || 'unknown'
+
+      totalEarnings += usdEarnings
+      totalOrders += orders
+      totalHashRate += mhz
+
+      if (source === 'json_parsing_success' || source === 'online' || source === 'active') {
+        activeProvers++
+      }
+    })
+
+    setDashboardStats({
+      totalEarnings: totalEarnings.toFixed(2),
+      activeProvers,
+      totalOrdersCompleted: totalOrders,
+      totalHashRate: totalHashRate.toFixed(0)
     })
   }
 
@@ -234,17 +275,20 @@ export default function Dashboard() {
         
         if (data.data && Array.isArray(data.data)) {
           setProvers(data.data)
+          calculateStats(data.data) // Вычисляем статистику из реальных данных
           console.log(`✅ Loaded ${data.data.length} provers`)
         }
       } else {
         console.warn('⚠️ API failed, using fallback')
         setProvers([])
+        calculateStats([])
       }
       
       setLastUpdated(formatTime(new Date()))
     } catch (error) {
       console.error('❌ Failed to fetch data:', error)
       setProvers([])
+      calculateStats([])
     } finally {
       setLoading(false)
     }
@@ -268,13 +312,16 @@ export default function Dashboard() {
 
       if (result.success && result.data && Array.isArray(result.data)) {
         setSearchResults(result.data)
+        calculateStats(result.data) // Вычисляем статистику из результатов поиска
         console.log(`✅ Found ${result.data.length} results`)
       } else {
         setSearchResults([])
+        calculateStats([])
       }
     } catch (error) {
       console.error('❌ Search failed:', error)
       setSearchResults([])
+      calculateStats([])
     } finally {
       setIsSearching(false)
     }
@@ -335,6 +382,10 @@ export default function Dashboard() {
         performSearch(searchTerm)
       } else {
         setSearchResults([])
+        // Если нет поиска, показываем статистику основных данных
+        if (provers.length > 0) {
+          calculateStats(provers)
+        }
       }
     }, 500)
 
@@ -471,42 +522,7 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* Timeframe Selection */}
-        <motion.div 
-          className="flex justify-center mb-8"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-        >
-          <div className="flex items-center gap-2 p-2 rounded-xl border border-[#38fff6]/20 bg-[#151828]/40 backdrop-blur-sm">
-            <span className="text-sm text-gray-400 px-3">Time period:</span>
-            
-            {(['1d', '3d', '1w'] as const).map((timeframe) => {
-              const labels = { '1d': '1 Day', '3d': '3 Days', '1w': '1 Week' }
-              const isSelected = selectedTimeframe === timeframe
-              
-              return (
-                <button
-                  key={timeframe}
-                  onClick={() => setSelectedTimeframe(timeframe)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isSelected
-                      ? 'bg-[#38fff6] text-black'
-                      : 'text-gray-400 hover:text-white hover:bg-[#38fff6]/20'
-                  }`}
-                >
-                  {labels[timeframe]}
-                </button>
-              )
-            })}
-            
-            <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-600/30">
-              <span className="text-xs text-green-400">● LIVE</span>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Stats Overview */}
+        {/* Stats Overview - ОБНОВЛЕННАЯ СТАТИСТИКА */}
         <AnimatePresence>
           {isDataVisible && (
             <motion.div 
@@ -517,10 +533,11 @@ export default function Dashboard() {
             >
               <StatCard
                 title="Total Earnings"
-                value={dashboardStats.totalEarnings}
+                value={`$${dashboardStats.totalEarnings}`}
                 subtitle={`💰 ${selectedTimeframe} period`}
                 icon={DollarSign}
                 delay={0}
+                isLoading={loading}
               />
               
               <StatCard
@@ -529,6 +546,7 @@ export default function Dashboard() {
                 subtitle="⚡ verified on-chain"
                 icon={Users}
                 delay={0.1}
+                isLoading={loading}
               />
               
               <StatCard
@@ -537,14 +555,16 @@ export default function Dashboard() {
                 subtitle={`✅ ${selectedTimeframe} counting`}
                 icon={BarChart3}
                 delay={0.2}
+                isLoading={loading}
               />
               
               <StatCard
                 title="Total Hash Rate"
-                value={`${dashboardStats.totalHashRate} H/s`}
+                value={`${dashboardStats.totalHashRate} MHz`}
                 subtitle="🔥 Live combined"
                 icon={TrendingUp}
                 delay={0.3}
+                isLoading={loading}
               />
             </motion.div>
           )}
@@ -559,39 +579,72 @@ export default function Dashboard() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              {/* Search Bar */}
-              <div className="max-w-2xl mx-auto">
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Search by Ethereum address (0x...), nickname..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="block w-full pl-10 pr-10 py-3 border border-[#38fff6]/30 rounded-xl bg-[#151828]/40 backdrop-blur-sm placeholder-gray-500 text-white focus:outline-none focus:ring-2 focus:ring-[#38fff6]/50 focus:border-[#38fff6] transition-all duration-200"
-                  />
-                  {(searchTerm || isSearching) && (
-                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center gap-2">
-                      {isSearching && (
-                        <div className="w-4 h-4 border-2 border-[#38fff6] border-t-transparent rounded-full animate-spin" />
-                      )}
-                      {searchTerm && (
-                        <button
-                          onClick={() => setSearchTerm('')}
-                          className="text-gray-400 hover:text-white transition-colors"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
+              {/* Search Bar + Timeframe Buttons */}
+              <div className="max-w-4xl mx-auto">
+                <div className="flex flex-col lg:flex-row gap-4 items-center">
+                  {/* Search Bar */}
+                  <div className="flex-1 w-full lg:w-auto">
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Search by Ethereum address (0x...), nickname..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="block w-full pl-10 pr-10 py-3 border border-[#38fff6]/30 rounded-xl bg-[#151828]/40 backdrop-blur-sm placeholder-gray-500 text-white focus:outline-none focus:ring-2 focus:ring-[#38fff6]/50 focus:border-[#38fff6] transition-all duration-200"
+                      />
+                      {(searchTerm || isSearching) && (
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center gap-2">
+                          {isSearching && (
+                            <div className="w-4 h-4 border-2 border-[#38fff6] border-t-transparent rounded-full animate-spin" />
+                          )}
+                          {searchTerm && (
+                            <button
+                              onClick={() => setSearchTerm('')}
+                              className="text-gray-400 hover:text-white transition-colors"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
+                  </div>
+
+                  {/* Timeframe Buttons */}
+                  <div className="flex items-center gap-2 p-2 rounded-xl border border-[#38fff6]/20 bg-[#151828]/40 backdrop-blur-sm">
+                    <span className="text-sm text-gray-400 px-2">Period:</span>
+                    
+                    {(['1d', '3d', '1w'] as const).map((timeframe) => {
+                      const labels = { '1d': '1 Day', '3d': '3 Days', '1w': '1 Week' }
+                      const isSelected = selectedTimeframe === timeframe
+                      
+                      return (
+                        <button
+                          key={timeframe}
+                          onClick={() => setSelectedTimeframe(timeframe)}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                            isSelected
+                              ? 'bg-[#38fff6] text-black'
+                              : 'text-gray-400 hover:text-white hover:bg-[#38fff6]/20'
+                          }`}
+                        >
+                          {labels[timeframe]}
+                        </button>
+                      )
+                    })}
+                    
+                    <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-600/30">
+                      <span className="text-xs text-green-400">● LIVE</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Search Results Info */}
                 {searchTerm && (
-                  <div className="mt-2 text-sm text-gray-400 text-center">
+                  <div className="mt-4 text-sm text-gray-400 text-center">
                     {searchResults.length > 0 ? (
                       <span className="text-green-400">
                         Found {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{searchTerm}" ({selectedTimeframe})
