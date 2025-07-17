@@ -1,27 +1,15 @@
 // src/app/api/provers/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { createPublicClient, http } from 'viem';
-import { base } from 'viem/chains';
-import * as cheerio from 'cheerio';
 
 // --- SUPABASE --- //
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// --- BLOCKCHAIN --- //
-const publicClient = createPublicClient({
-  chain: base,
-  transport: http('https://mainnet.base.org')
-});
-
-// --- CACHE и TIMEFRAMES --- //
-const TIMEFRAME_BLOCKS = { '1d': 43200, '3d': 129600, '1w': 302400 };
-
-// --- ПАРСЕР БЕЗ CHEERIO (FALLBACK) --- //
+// --- JSON PARSER (НОВЫЙ ПОДХОД) --- //
 async function parseProverPage(searchAddress: string, timeframe: string = '1w'): Promise<any> {
-  console.log('🚀 parseProverPage STARTED');
+  console.log('🚀 JSON PARSER STARTED');
   console.log('🔍 Search address:', searchAddress);
   console.log('📅 Timeframe:', timeframe);
   
@@ -42,10 +30,6 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
       }
     });
 
@@ -58,19 +42,16 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
         peak_mhz: 0,
         success_rate: 0,
         source: 'http_error',
-        rawData: { status: response.status, statusText: response.statusText }
+        debug: { status: response.status, statusText: response.statusText }
       };
     }
 
     const html = await response.text();
     console.log('✅ HTML fetched, length:', html.length);
-    console.log('📝 HTML SAMPLE (first 500 chars):', html.substring(0, 500));
 
     // Приводим поисковый адрес к нижнему регистру для сравнения
     const searchAddressLower = searchAddress.toLowerCase();
-    console.log('🔍 Looking for full address:', searchAddress);
-    console.log('🔍 Looking for lowercase:', searchAddressLower);
-
+    
     // Проверяем есть ли адрес в HTML вообще
     const addressInHtml = html.toLowerCase().includes(searchAddressLower);
     console.log('🎯 Address found anywhere in HTML:', addressInHtml);
@@ -84,377 +65,162 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
         peak_mhz: 0,
         success_rate: 0,
         source: 'address_not_in_html',
-        rawData: { searchAddress, timeframe, mappedTimeframe, htmlLength: html.length }
+        debug: { searchAddress, timeframe, mappedTimeframe, htmlLength: html.length }
       };
     }
 
-    // ПАРСИМ БЕЗ CHEERIO - обычными string методами
-    console.log('🔥 TRYING CHEERIO PARSING...');
+    // --- НОВЫЙ JSON ПАРСЕР --- //
+    console.log('🔥 PARSING JSON DATA FROM HTML...');
     
-    let foundOrdersTaken = 0;
-    let foundEthEarnings = 0;
-    let foundUsdcEarnings = 0;
-    let foundSuccessRate = 0;
-    let foundPeakMhz = 0;
-    let foundData: any = null;
-    let addressFound = false;
-    let rowsCount = 0; // ДОБАВИЛИ СЧЕТЧИК СТРОК
-
-    try {
-      // Загружаем HTML с Cheerio
-      const $ = cheerio.load(html);
-      console.log('✅ Cheerio loaded successfully');
-      
-      // Ищем все строки таблицы - ИСПРАВЛЕННЫЕ СЕЛЕКТОРЫ
-      let rows = $('tbody tr');
-      console.log('📊 Found tbody tr rows:', rows.length);
-      rowsCount = rows.length;
-      
-      // Если нет tbody tr, пробуем другие селекторы
-      if (rows.length === 0) {
-        rows = $('table tr');
-        console.log('📊 Found table tr rows:', rows.length);
-        rowsCount = rows.length;
-      }
-      
-      if (rows.length === 0) {
-        rows = $('tr').filter((i, el) => $(el).find('td').length >= 9);
-        console.log('📊 Found filtered tr rows (9+ cells):', rows.length);
-        rowsCount = rows.length;
-      }
-      
-      if (rows.length === 0) {
-        const allRows = $('tr');
-        console.log('📊 Found ANY tr elements:', allRows.length);
-        rowsCount = allRows.length;
-        
-        // Используем любые TR если есть
-        if (allRows.length > 0) {
-          rows = allRows;
-        }
-      }
-      
-      // Если нет строк, попробуем другие селекторы  
-      if (rows.length === 0) {
-        console.log('❌ NO ROWS FOUND WITH ANY SELECTOR!');
-        const tableElement = $('table');
-        console.log('📊 Found table elements:', tableElement.length);
-        if (tableElement.length > 0) {
-          console.log('📝 Table HTML sample:', tableElement.html()?.substring(0, 500));
-        }
-      }
-
-      // Перебираем строки
-      rows.each((index, element) => {
-        const row = $(element);
-        const cells = row.find('td');
-        
-        if (cells.length >= 9 && !addressFound) {
-          // Проверяем 2-ю колонку (адрес) - индекс 1
-          const addressCell = $(cells[1]);
-          
-          // DEBUG: Логируем ВСЮ HTML ячейки с адресом
-          const cellHtml = addressCell.html();
-          console.log(`🔍 Row ${index} address cell HTML:`, cellHtml);
-          
-          // Ищем ПОЛНЫЙ адрес в span title атрибуте
-          const spanWithTitle = addressCell.find('span[title]');
-          const allText = addressCell.text().trim();
-          
-          let fullAddress = '';
-          
-          // Метод 1: span title атрибут (ОСНОВНОЙ)
-          if (spanWithTitle.length > 0) {
-            fullAddress = spanWithTitle.attr('title') || '';
-            console.log(`   Method 1 (span title): "${fullAddress}"`);
-          }
-          
-          // Метод 2: любой title атрибут
-          if (!fullAddress) {
-            const anyTitleElement = addressCell.find('[title]');
-            if (anyTitleElement.length > 0) {
-              fullAddress = anyTitleElement.attr('title') || '';
-              console.log(`   Method 2 (any title): "${fullAddress}"`);
-            }
-          }
-          
-          // Метод 3: href
-          if (!fullAddress) {
-            const linkElement = addressCell.find('a[href]');
-            if (linkElement.length > 0) {
-              const href = linkElement.attr('href') || '';
-              console.log(`   Method 3 (href): "${href}"`);
-              const addressMatch = href.match(/\/provers\/(0x[a-fA-F0-9]{40})/);
-              if (addressMatch) {
-                fullAddress = addressMatch[1];
-                console.log(`   Method 3 extracted: "${fullAddress}"`);
-              }
-            }
-          }
-          
-          // Метод 4: прямой поиск в HTML
-          if (!fullAddress && cellHtml) {
-            const htmlMatch = cellHtml.match(/(0x[a-fA-F0-9]{40})/);
-            if (htmlMatch) {
-              fullAddress = htmlMatch[1];
-              console.log(`   Method 4 (HTML): "${fullAddress}"`);
-            }
-          }
-          
-          console.log(`   All text in cell: "${allText}"`);
-          console.log(`   Final address found: "${fullAddress}"`);
-          console.log(`   Looking for: "${searchAddress}"`);
-          console.log(`   Match: ${fullAddress && fullAddress.toLowerCase() === searchAddressLower}`);
-          
-          // Сравниваем ПОЛНЫЕ адреса (регистронезависимо)
-          if (fullAddress && fullAddress.toLowerCase() === searchAddressLower) {
-            console.log('🎯 Found matching row!');
-            addressFound = true;
-            
-            // Извлекаем данные из колонок - ПРОБУЕМ РАЗНЫЕ ИНДЕКСЫ
-            const ordersText = $(cells[2]).text().trim(); // Orders taken
-            const ordersText2 = $(cells[3]).text().trim(); // Может тут?
-            const cyclesText = $(cells[3]).text().trim(); // Cycles proved  
-            const ethText = $(cells[4]).text().trim();    // Order earnings
-            const usdcText = $(cells[5]).text().trim();   // Stake earnings
-            const mhzText = $(cells[7]).text().trim();    // Peak MHz
-            const mhzText2 = $(cells[8]).text().trim();   // Может тут?
-            const successText = $(cells[8]).text().trim(); // Success rate
-            const successText2 = $(cells[9]).text().trim(); // Может тут?
-            
-            console.log('📊 Raw data extracted (ALL COLUMNS):');
-            for (let i = 0; i < cells.length; i++) {
-              console.log(`   Column ${i}: "${$(cells[i]).text().trim()}"`);
-            }
-            
-            console.log('📊 Target columns extracted:', {
-              orders2: ordersText,
-              orders3: ordersText2,
-              cycles: cyclesText,
-              eth: ethText,
-              usdc: usdcText,
-              mhz7: mhzText,
-              mhz8: mhzText2,
-              success8: successText,
-              success9: successText2
-            });
-
-            // Конвертируем orders (1K → 1000, 1.8K → 1800, etc.)
-            if (ordersText && ordersText !== '-') {
-              if (ordersText.includes('K')) {
-                foundOrdersTaken = Math.round(parseFloat(ordersText.replace('K', '')) * 1000);
-              } else if (ordersText.includes('M')) {
-                foundOrdersTaken = Math.round(parseFloat(ordersText.replace('M', '')) * 1000000);
-              } else {
-                foundOrdersTaken = parseInt(ordersText.replace(/[^\d]/g, '')) || 0;
-              }
-            }
-
-            // Извлекаем ETH сумму
-            if (ethText && ethText !== '-') {
-              const ethMatch = ethText.match(/([\d.]+)/);
-              if (ethMatch) {
-                foundEthEarnings = parseFloat(ethMatch[1]);
-              }
-            }
-
-            // Извлекаем USDC сумму
-            if (usdcText && usdcText !== '-') {
-              const usdcMatch = usdcText.match(/([\d.]+)/);
-              if (usdcMatch) {
-                foundUsdcEarnings = parseFloat(usdcMatch[1]);
-              }
-            }
-
-            // Извлекаем success rate
-            if (successText && successText !== '-') {
-              const successMatch = successText.match(/([\d.]+)/);
-              if (successMatch) {
-                foundSuccessRate = parseFloat(successMatch[1]);
-              }
-            }
-
-            // Извлекаем MHz
-            if (mhzText && mhzText !== '-') {
-              const mhzMatch = mhzText.match(/([\d.]+)/);
-              if (mhzMatch) {
-                foundPeakMhz = parseFloat(mhzMatch[1]);
-              }
-            }
-
-            foundData = {
-              orders: ordersText,
-              cycles: cyclesText,
-              eth: ethText,
-              usdc: usdcText,
-              success: successText,
-              mhz: mhzText
-            };
-
-            console.log('✅ Converted values:', {
-              ordersTaken: foundOrdersTaken,
-              ethEarnings: foundEthEarnings,
-              usdcEarnings: foundUsdcEarnings,
-              successRate: foundSuccessRate,
-              peakMhz: foundPeakMhz
-            });
-          }
-        }
-      });
-
-    } catch (cheerioError) {
-      console.error('❌ CHEERIO FAILED:', cheerioError);
-      
-      // FALLBACK: STRING PARSING БЕЗ CHEERIO
-      console.log('🔥 TRYING STRING PARSING FALLBACK...');
-      
-      // Ищем адрес в HTML
-      const addressIndex = html.toLowerCase().indexOf(searchAddressLower);
-      if (addressIndex !== -1) {
-        console.log('📍 Address found at position:', addressIndex);
-        
-        // Извлекаем большой контекст вокруг адреса (вся строка таблицы)
-        const contextStart = Math.max(0, addressIndex - 2000);
-        const contextEnd = Math.min(html.length, addressIndex + 2000);
-        const context = html.substring(contextStart, contextEnd);
-        console.log('📝 Context around address (4000 chars):', context.substring(0, 1000));
-        
-        // Ищем строку таблицы содержащую адрес
-        const beforeAddress = html.substring(0, addressIndex);
-        const afterAddress = html.substring(addressIndex);
-        
-        // Находим начало строки (<tr)
-        const trStartIndex = beforeAddress.lastIndexOf('<tr');
-        // Находим конец строки (</tr>)
-        const trEndIndex = afterAddress.indexOf('</tr>');
-        
-        if (trStartIndex !== -1 && trEndIndex !== -1) {
-          const rowHtml = html.substring(trStartIndex, addressIndex + trEndIndex + 5);
-          console.log('🎯 FOUND TABLE ROW HTML:', rowHtml.substring(0, 500));
-          
-          // Парсим ячейки через регулярку
-          const cellMatches = rowHtml.match(/<td[^>]*>(.*?)<\/td>/g);
-          if (cellMatches && cellMatches.length >= 9) {
-            console.log('📊 Found cells:', cellMatches.length);
-            
-            // Извлекаем текст из ячеек
-            const cells = cellMatches.map(cell => {
-              // Убираем теги и извлекаем только текст
-              return cell.replace(/<[^>]*>/g, '').trim();
-            });
-            
-            console.log('📊 Cell contents:', cells);
-            
-            // Ищем orders в 3-й ячейке (индекс 2)
-            const ordersText = cells[2] || '';
-            console.log('📊 Orders text:', ordersText);
-            
-            if (ordersText && ordersText !== '-') {
-              if (ordersText.includes('K')) {
-                foundOrdersTaken = Math.round(parseFloat(ordersText.replace('K', '').replace(',', '')) * 1000);
-              } else if (ordersText.includes('M')) {
-                foundOrdersTaken = Math.round(parseFloat(ordersText.replace('M', '').replace(',', '')) * 1000000);
-              } else {
-                const numMatch = ordersText.match(/[\d,]+/);
-                if (numMatch) {
-                  foundOrdersTaken = parseInt(numMatch[0].replace(/,/g, '')) || 0;
-                }
-              }
-            }
-            
-            // Ищем ETH в 5-й ячейке (индекс 4)
-            const ethText = cells[4] || '';
-            const ethMatch = ethText.match(/([\d.]+)/);
-            if (ethMatch) {
-              foundEthEarnings = parseFloat(ethMatch[1]);
-            }
-            
-            // Ищем USDC в 6-й ячейке (индекс 5)  
-            const usdcText = cells[5] || '';
-            const usdcMatch = usdcText.match(/([\d.]+)/);
-            if (usdcMatch) {
-              foundUsdcEarnings = parseFloat(usdcMatch[1]);
-            }
-            
-            // Ищем success rate в последней ячейке
-            const successText = cells[cells.length - 1] || '';
-            const successMatch = successText.match(/([\d.]+)/);
-            if (successMatch) {
-              foundSuccessRate = parseFloat(successMatch[1]);
-            }
-            
-            addressFound = true;
-            foundData = { 
-              method: 'string_parsing', 
-              cells: cells,
-              ordersText,
-              ethText,
-              usdcText,
-              successText,
-              rowHtml: rowHtml.substring(0, 500)
-            };
-            
-            console.log('✅ String parsing SUCCESS:', {
-              ordersTaken: foundOrdersTaken,
-              ethEarnings: foundEthEarnings,
-              usdcEarnings: foundUsdcEarnings,
-              successRate: foundSuccessRate
-            });
-          }
-        }
-      }
-    }
-
-    if (addressFound) {
-      console.log('🎉 SUCCESS! Address found and data extracted');
-      return {
-        orders_taken: foundOrdersTaken,
-        order_earnings_eth: foundEthEarnings,
-        order_earnings_usd: foundUsdcEarnings,
-        peak_mhz: foundPeakMhz,
-        success_rate: foundSuccessRate,
-        source: 'real_prover_table_parsing',
-        rawData: foundData,
-        extractedValues: {
-          ordersTaken: foundOrdersTaken,
-          ethEarnings: foundEthEarnings,
-          usdcEarnings: foundUsdcEarnings,
-          successRate: foundSuccessRate,
-          peakMhz: foundPeakMhz
-        },
-        // ДОБАВЛЯЕМ DEBUG ДАННЫЕ В ОТВЕТ
-        debug: {
-          searchAddress,
-          timeframe,
-          htmlLength: html.length,
-          rowsFound: rowsCount,
-          addressFoundInHtml: addressInHtml,
-          allColumnsData: foundData
-        }
-      };
-    } else {
-      console.log('❌ Address not found in table');
+    // Ищем JSON данные в формате: "0xADDRESS":{"24h":{...},"7d":{...}}
+    const addressPattern = `"${searchAddressLower}":{`;
+    const addressIndex = html.toLowerCase().indexOf(addressPattern);
+    
+    if (addressIndex === -1) {
+      console.log('❌ JSON pattern not found for address');
       return {
         orders_taken: 0,
         order_earnings_eth: 0,
         order_earnings_usd: 0,
         peak_mhz: 0,
         success_rate: 0,
-        source: 'address_not_found',
-        rawData: { searchAddress, timeframe, mappedTimeframe, htmlLength: html.length },
-        // ДОБАВЛЯЕМ DEBUG ДАННЫЕ В ОТВЕТ
-        debug: {
-          searchAddress,
-          timeframe,
+        source: 'json_pattern_not_found',
+        debug: { 
+          searchAddress, 
+          timeframe, 
+          mappedTimeframe, 
           htmlLength: html.length,
-          rowsFound: rowsCount,
-          addressFoundInHtml: addressInHtml,
-          allColumnsData: foundData,
-          cheerioWorked: rowsCount > 0,
-          htmlSample: html.substring(0, 1000)
+          addressInHtml,
+          pattern: addressPattern
         }
       };
     }
+
+    console.log('✅ JSON pattern found at position:', addressIndex);
+
+    // Извлекаем JSON объект
+    const jsonStart = addressIndex + addressPattern.length - 1; // Позиция открывающей скобки {
+    let braceCount = 0;
+    let jsonEnd = jsonStart;
+    
+    // Ищем конец JSON объекта
+    for (let i = jsonStart; i < html.length; i++) {
+      if (html[i] === '{') braceCount++;
+      if (html[i] === '}') braceCount--;
+      if (braceCount === 0) {
+        jsonEnd = i + 1;
+        break;
+      }
+    }
+
+    if (braceCount !== 0) {
+      console.log('❌ Could not find complete JSON object');
+      return {
+        orders_taken: 0,
+        order_earnings_eth: 0,
+        order_earnings_usd: 0,
+        peak_mhz: 0,
+        success_rate: 0,
+        source: 'incomplete_json_object',
+        debug: { searchAddress, timeframe, braceCount }
+      };
+    }
+
+    const jsonStr = html.substring(jsonStart, jsonEnd);
+    console.log('📊 Extracted JSON string (first 200 chars):', jsonStr.substring(0, 200));
+
+    let proverData: any;
+    try {
+      proverData = JSON.parse(jsonStr);
+      console.log('✅ JSON PARSED SUCCESSFULLY!');
+    } catch (parseError) {
+      console.error('❌ JSON Parse error:', parseError);
+      return {
+        orders_taken: 0,
+        order_earnings_eth: 0,
+        order_earnings_usd: 0,
+        peak_mhz: 0,
+        success_rate: 0,
+        source: 'json_parse_error',
+        debug: { 
+          searchAddress, 
+          timeframe, 
+          error: parseError instanceof Error ? parseError.message : String(parseError),
+          jsonSample: jsonStr.substring(0, 500)
+        }
+      };
+    }
+
+    // Извлекаем данные для нужного timeframe
+    const timeframeData = proverData[mappedTimeframe];
+    if (!timeframeData) {
+      console.log('❌ No data for timeframe:', mappedTimeframe);
+      console.log('📊 Available timeframes:', Object.keys(proverData));
+      return {
+        orders_taken: 0,
+        order_earnings_eth: 0,
+        order_earnings_usd: 0,
+        peak_mhz: 0,
+        success_rate: 0,
+        source: 'timeframe_not_found',
+        debug: { 
+          searchAddress, 
+          timeframe, 
+          mappedTimeframe,
+          availableTimeframes: Object.keys(proverData)
+        }
+      };
+    }
+
+    console.log('📊 Timeframe data:', timeframeData);
+
+    // Извлекаем нужные значения
+    const orderCount = timeframeData.orderCount || 0;
+    const orderEarnings = timeframeData.orderEarnings || 0;
+    const maxMhz = timeframeData.maxMhz || 0;
+    const successRate = timeframeData.successRate || 0;
+
+    // Конвертируем orderEarnings из wei в ETH (предполагаем что это wei)
+    const orderEarningsEth = orderEarnings > 0 ? orderEarnings / 1e18 : 0;
+    
+    // Примерная конвертация в USD (можно улучшить через реальный курс ETH)
+    const ethToUsd = 2400; // Примерный курс ETH/USD
+    const orderEarningsUsd = orderEarningsEth * ethToUsd;
+
+    console.log('🎯 EXTRACTED VALUES:', {
+      orderCount,
+      orderEarnings,
+      orderEarningsEth,
+      orderEarningsUsd,
+      maxMhz,
+      successRate
+    });
+
+    return {
+      orders_taken: orderCount,
+      order_earnings_eth: orderEarningsEth,
+      order_earnings_usd: orderEarningsUsd,
+      peak_mhz: maxMhz,
+      success_rate: successRate,
+      source: 'json_parsing_success',
+      rawData: timeframeData,
+      debug: {
+        searchAddress,
+        timeframe,
+        mappedTimeframe,
+        htmlLength: html.length,
+        jsonParsed: true,
+        availableTimeframes: Object.keys(proverData),
+        extractedValues: {
+          orderCount,
+          orderEarnings,
+          orderEarningsEth,
+          orderEarningsUsd,
+          maxMhz,
+          successRate
+        }
+      }
+    };
 
   } catch (error) {
     console.error('❌ FATAL ERROR in parseProverPage:', error);
@@ -465,7 +231,7 @@ async function parseProverPage(searchAddress: string, timeframe: string = '1w'):
       peak_mhz: 0,
       success_rate: 0,
       source: 'parsing_error',
-      rawData: { error: error instanceof Error ? error.message : String(error) }
+      debug: { error: error instanceof Error ? error.message : String(error) }
     };
   }
 }
@@ -491,7 +257,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, message: 'Cache cleared' });
   }
 
-  function searchFallbackProvers(query: string) {
+  function getFallbackProvers(query: string) {
     const fallbackProvers = [
       {
         id: 'prover-001',
@@ -553,24 +319,20 @@ export async function GET(request: NextRequest) {
       console.log('🔍 Searching for blockchain address:', query);
       const proverPageData = await parseProverPage(query, timeframe);
       
-      if (proverPageData) {
-        return NextResponse.json({
-          success: true,
-          data: [proverPageData],
-          pagination: { page: 1, limit: 1, total: 1, totalPages: 1 },
-          source: proverPageData.source,
-          timestamp: Date.now(),
-        });
-      }
+      return NextResponse.json({
+        success: true,
+        data: [proverPageData],
+        pagination: { page: 1, limit: 1, total: 1, totalPages: 1 },
+        source: proverPageData.source,
+        timestamp: Date.now(),
+      });
     }
 
     // Если запрашиваются реальные данные и блокчейн
     if (blockchain && realdata) {
       console.log('🌐 Fetching real blockchain data...');
       
-      // Здесь можно добавить логику получения списка пруверов из реального источника
-      // Пока возвращаем fallback данные
-      const fallbackResults = searchFallbackProvers(query);
+      const fallbackResults = getFallbackProvers(query);
       const finalData = fallbackResults.slice(offset, offset + limit);
       const total = fallbackResults.length;
 
@@ -602,11 +364,10 @@ export async function GET(request: NextRequest) {
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
-    let finalData = data || [];
 
     return NextResponse.json({
       success: true,
-      data: finalData,
+      data: data || [],
       pagination: { page, limit, total: count || 0, totalPages: Math.ceil((count || 0) / limit) },
       source: 'supabase_fallback',
       timestamp: Date.now(),
@@ -615,7 +376,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('❌ API Error:', error);
     
-    const fallbackResults = searchFallbackProvers(query);
+    const fallbackResults = getFallbackProvers(query);
     const finalData = fallbackResults.slice(offset, offset + limit);
     const total = fallbackResults.length;
 
